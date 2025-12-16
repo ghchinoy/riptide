@@ -5,6 +5,8 @@ website-assistant
 
 # Logs
 *.log
+logs/*
+!logs/.keep
 
 # Artifacts
 screenshots/*
