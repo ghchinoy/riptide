@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/chromedp/chromedp"
 	"google.golang.org/genai"
@@ -62,8 +63,14 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 	}
 	
 	res["output"] = msg
-	// TODO: Fetch actual URL
-	res["url"] = "https://www.google.com" // Mock for now
+	
+	// Fetch actual URL
+	var currentURL string
+	if err := chromedp.Run(ctx, chromedp.Evaluate("window.location.href", &currentURL)); err != nil {
+		log.Printf("Failed to get current URL: %v", err)
+		currentURL = "unknown"
+	}
+	res["url"] = currentURL
 	
 	return res, err
 }
@@ -112,7 +119,72 @@ func handleMouseClick(ctx context.Context, args map[string]interface{}, width, h
 		return nil, err
 	}
 	log.Printf("Clicking at %f, %f", x, y)
-	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y))
+	
+	// 1. Physical Click
+	if err := chromedp.Run(ctx, chromedp.MouseClickXY(x, y)); err != nil {
+		return nil, err
+	}
+	
+	// 2. JS Focus Fallback (Spatial Aim Assist)
+	// If the model clicked a focusable element (input, button), ensure it gets focus.
+	// If it missed, find the NEAREST focusable element within a radius.
+	var foundTag string
+	err = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
+		(function(x, y) {
+			const RADIUS = 100;
+			let bestCandidate = null;
+			let minDist = Infinity;
+
+			// Helper to calc distance from point to rect center
+			function getDist(rect) {
+				const centerX = rect.left + rect.width / 2;
+				const centerY = rect.top + rect.height / 2;
+				return Math.hypot(centerX - x, centerY - y);
+			}
+
+			// 1. Direct Hit Check
+			let hit = document.elementFromPoint(x, y);
+			if (hit && (hit.tagName === 'INPUT' || hit.tagName === 'TEXTAREA' || hit.tagName === 'BUTTON' || hit.hasAttribute('tabindex'))) {
+				hit.focus();
+				if (hit.tagName === 'BUTTON' || (hit.tagName === 'INPUT' && hit.type === 'submit')) {
+					hit.click();
+					return "DIRECT->" + hit.tagName + " (CLICKED)";
+				}
+				return "DIRECT->" + hit.tagName;
+			}
+
+			// 2. Proximity Search
+			const candidates = document.querySelectorAll('input, textarea, button, [tabindex]');
+			candidates.forEach(el => {
+				const rect = el.getBoundingClientRect();
+				// Check if visible
+				if (rect.width === 0 || rect.height === 0) return;
+				
+				const dist = getDist(rect);
+				if (dist < RADIUS && dist < minDist) {
+					minDist = dist;
+					bestCandidate = el;
+				}
+			});
+
+			if (bestCandidate) {
+				bestCandidate.focus();
+				// If it's a button, clicking physically might have missed, so help it out.
+				if (bestCandidate.tagName === 'BUTTON' || (bestCandidate.tagName === 'INPUT' && bestCandidate.type === 'submit')) {
+					bestCandidate.click();
+					return "PROXIMITY(" + Math.round(minDist) + "px)->" + bestCandidate.tagName + " (CLICKED)";
+				}
+				return "PROXIMITY(" + Math.round(minDist) + "px)->" + bestCandidate.tagName;
+			}
+
+			return hit ? hit.tagName + " (No Target Found)" : "NONE";
+		})(%f, %f)
+	`, x, y), &foundTag))
+	
+	if err == nil {
+		log.Printf("JS Focus Result: %s", foundTag)
+	}
+	
 	return "clicked", err
 }
 
@@ -122,16 +194,51 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 		if _, err := handleMouseClick(ctx, args, width, height); err != nil {
 			return nil, err
 		}
+		// Short wait for focus
+		chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 	}
 	
+	// Verify focus (optional debug)
+	var activeTag string
+	if err := chromedp.Run(ctx, chromedp.Evaluate("document.activeElement.tagName", &activeTag)); err == nil {
+		log.Printf("Active element tag: %s", activeTag)
+	}
+
 	text, _ := args["text"].(string)
 	if text == "" {
 		text, _ = args["value"].(string)
 	}
 	log.Printf("Typing: %s", text)
-	// We might need to focus explicitly, but usually previous click handles it.
-	// Or use kb.Type which types into focused element.
-	err := chromedp.Run(ctx, chromedp.KeyEvent(text)) 
+	
+	// Try physical typing first (optional, or skip to JS if we trust it more)
+	// err := chromedp.Run(ctx, chromedp.KeyEvent(text)) 
+	
+	// Robust method: JS Injection into active element
+	// This handles cases where headless focus is wonky or KeyEvents are dropped.
+	// We dispatch 'input' and 'change' events so React/Frameworks react to it.
+	err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
+		(function(txt) {
+			const el = document.activeElement;
+			if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+				const start = el.selectionStart || el.value.length;
+				const end = el.selectionEnd || el.value.length;
+				const original = el.value;
+				
+				// Insert text at cursor or append
+				el.value = original.substring(0, start) + txt + original.substring(end);
+				
+				// Move cursor
+				el.selectionStart = el.selectionEnd = start + txt.length;
+				
+				// Dispatch events
+				el.dispatchEvent(new Event('input', { bubbles: true }));
+				el.dispatchEvent(new Event('change', { bubbles: true }));
+				return "injected";
+			}
+			return "not_input";
+		})(%q)
+	`, text), nil))
+
 	return "typed", err
 }
 

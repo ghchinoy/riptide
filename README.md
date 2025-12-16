@@ -90,5 +90,12 @@ The system follows a Client-Server-Model pattern:
 *   `google.golang.org/genai`: The official Go SDK for Gemini.
 *   `github.com/chromedp/chromedp`: High-performance Chrome DevTools Protocol client.
 
+**Driver Augmentation:**
+To compensate for AI inaccuracy, the Executor employs heuristics like **Euclidean Aim Assist** and **Smart JS Focus** to "snap" clicks to the nearest interactive element.
+
+## Documentation
+*   [Architectural Concepts](docs/concepts.md): Deep dive into the "Browser OS" model.
+*   [Lessons Learned](docs/lessons_learned.md): Solutions for coordinate drift and focus issues.
+
 ## License
 Apache 2.0
