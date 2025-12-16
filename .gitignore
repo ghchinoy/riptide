@@ -1,0 +1,24 @@
+# Binaries
+main
+testserver
+website-assistant
+
+# Logs
+*.log
+
+# Artifacts
+screenshots/*
+!screenshots/.keep
+*.gif
+*.png
+
+# Dependencies
+vendor/
+
+# User specific
+.env
+.idea/
+.vscode/
+
+#
+.commit.txt

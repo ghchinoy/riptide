@@ -1,0 +1,48 @@
+digraph ComputerUseInteraction {
+    rankdir=LR;
+    node [shape=box, style=filled, fillcolor=white, fontname="Helvetica"];
+    edge [fontname="Helvetica", fontsize=10];
+    
+    User [shape=ellipse, fillcolor=lightblue, label="User"];
+    FileSystem [shape=folder, label="File System\n(screenshots/)", fillcolor=lightyellow];
+    
+    subgraph cluster_App {
+        label = "Go Application";
+        style=filled;
+        fillcolor=lightgrey;
+        fontname="Helvetica";
+        
+        Main [label="Main Entry\n(main.go)"];
+        ComputerRun [label="computer.Run\n(pkg/computer)"];
+        Executor [label="Executor\n(Map Actions)"];
+    }
+    
+    subgraph cluster_External {
+        label = "External Services";
+        style=dashed;
+        fontname="Helvetica";
+        
+        Gemini [label="Gemini Model\n(Vertex AI)", shape=hexagon, fillcolor=lavender];
+        Chrome [label="Headless Chrome\n(chromedp)", shape=component, fillcolor=lightcyan];
+    }
+    
+    User -> Main [label="Starts App\n(-prompt)"];
+    Main -> Chrome [label="Init Browser"];
+    Main -> ComputerRun [label="Start Loop"];
+    
+    ComputerRun -> Chrome [label="1. CaptureScreenshot"];
+    Chrome -> ComputerRun [label="Image Data"];
+    ComputerRun -> FileSystem [label="2. Save PNG"];
+    
+    ComputerRun -> Gemini [label="3. GenerateContent\n(History + Screenshot)"];
+    Gemini -> ComputerRun [label="4. FunctionCall\n(e.g., click, type)"];
+    
+    ComputerRun -> Executor [label="5. Execute(FunctionCall)"];
+    Executor -> Chrome [label="6. Run Action\n(MouseClickXY, KeyEvent)"];
+    Chrome -> Executor [label="Action Result"];
+    Executor -> ComputerRun [label="ToolOutput"];
+    
+    ComputerRun -> Gemini [label="7. FunctionResponse\n(ToolOutput + New Screenshot)"];
+    
+    // Feedback loop implied by 7->4
+}
