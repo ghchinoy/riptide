@@ -11,6 +11,7 @@ screenshots/*
 !screenshots/.keep
 *.gif
 *.png
+!docs/*.png
 
 # Dependencies
 vendor/
