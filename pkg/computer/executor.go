@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
 	"google.golang.org/genai"
 )
@@ -51,6 +52,10 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 		msg, err = handleKey(ctx, call.Args)
 	case "scroll", "scroll_document", "scroll_at":
 		msg, err = handleScroll(ctx, call.Args, width, height)
+	case "drag_and_drop":
+		msg, err = handleDragAndDrop(ctx, call.Args, width, height)
+	case "hover", "hover_at":
+		msg, err = handleHover(ctx, call.Args, width, height)
 	case "wait", "wait_5_seconds":
 		msg, err = handleWait(ctx, call.Args)
 	case "navigate":
@@ -277,4 +282,73 @@ func handleScroll(ctx context.Context, args map[string]interface{}, width, heigh
 func handleWait(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	// Explicit wait
 	return "waited", nil
+}
+
+func handleDragAndDrop(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	// Get Start Coords
+	x1, y1, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get End Coords
+	var x2, y2 float64
+	if args["destination_x"] != nil && args["destination_y"] != nil {
+		x2 = denormalize(args["destination_x"], width)
+		y2 = denormalize(args["destination_y"], height)
+	} else {
+		return nil, fmt.Errorf("missing destination coordinates")
+	}
+
+	log.Printf("Dragging from (%f, %f) to (%f, %f)", x1, y1, x2, y2)
+
+	// Execute Drag Sequence using low-level Input domain
+	// Move -> Down -> Wait -> Move (Drag) -> Wait -> Up
+	err = chromedp.Run(ctx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Move to start
+			if err := input.DispatchMouseEvent(input.MouseMoved, x1, y1).Do(ctx); err != nil {
+				return err
+			}
+			// Mouse Down (Left Button)
+			// ClickCount 1 is standard for a click/drag start
+			if err := input.DispatchMouseEvent(input.MousePressed, x1, y1).WithButton("left").WithClickCount(1).Do(ctx); err != nil {
+				return err
+			}
+			return nil
+		}),
+		chromedp.Sleep(100*time.Millisecond),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Drag to end
+			// buttons=1 means Left Button is held down during move (1 = Left, 2 = Right, 4 = Middle)
+			// Wait, WithButtons takes an int.
+			if err := input.DispatchMouseEvent(input.MouseMoved, x2, y2).WithButtons(1).Do(ctx); err != nil {
+				return err
+			}
+			return nil
+		}),
+		chromedp.Sleep(100*time.Millisecond),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Mouse Up
+			if err := input.DispatchMouseEvent(input.MouseReleased, x2, y2).WithButton("left").WithClickCount(1).Do(ctx); err != nil {
+				return err
+			}
+			return nil
+		}),
+	)
+
+	return "dragged", err
+}
+
+func handleHover(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Hovering at (%f, %f)", x, y)
+	err = chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchMouseEvent(input.MouseMoved, x, y).Do(ctx)
+	}))
+	return "hovered", err
 }

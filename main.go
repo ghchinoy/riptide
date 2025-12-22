@@ -19,6 +19,7 @@ func main() {
 	prompt := flag.String("prompt", "Go to https://www.google.com and tell me what the doodle is today.", "The prompt for the computer user.")
 	makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
 	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
+	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
 	flag.Parse()
 
 	// Handle Ctrl+C
@@ -44,9 +45,21 @@ func main() {
 	sessionID := uuid.New().String()
 	fmt.Printf("Starting Session: %s\n", sessionID)
 
+	// Interactive Safety Handler
+	safetyHandler := func(explanation string) bool {
+		fmt.Printf("\n[SAFETY ALERT] The model flagged a safety concern:\n%s\n", explanation)
+		fmt.Print("Do you want to proceed? (y/N): ")
+		var response string
+		_, err := fmt.Scanln(&response)
+		if err != nil {
+			return false // Assume no on error/EOF
+		}
+		return response == "y" || response == "Y" || response == "yes"
+	}
+
 	// We pass the signal-aware context to Run. 
 	// If the user hits Ctrl+C, ctx.Done() will close, and chromedp/genai should terminate gracefully.
-	if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, nil, *maxTurns); err != nil {
+	if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots); err != nil {
 		if err == context.Canceled {
 			fmt.Println("\nRun cancelled by user.")
 		} else {

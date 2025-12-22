@@ -15,7 +15,7 @@ import (
 
 const ModelName = "gemini-2.5-computer-use-preview-10-2025"
 
-func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif bool, observer Observer, safetyHandler SafetyHandler, maxTurns int) error {
+func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		if observer != nil {
@@ -230,6 +230,53 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 						toolResp,
 					},
 				})
+			}
+		}
+
+		// Prune old screenshots to save context window
+		screenshotsFound := 0
+		// Iterate backwards
+		for j := len(history) - 1; j >= 0; j-- {
+			content := history[j]
+			if content.Role != "user" {
+				continue
+			}
+
+			hasScreenshot := false
+			// Check direct InlineData (initial prompt)
+			for _, part := range content.Parts {
+				if part.InlineData != nil {
+					hasScreenshot = true
+					break
+				}
+				// Check FunctionResponse InlineData
+				if part.FunctionResponse != nil {
+					for _, frPart := range part.FunctionResponse.Parts {
+						if frPart.InlineData != nil {
+							hasScreenshot = true
+							break
+						}
+					}
+				}
+			}
+
+			if hasScreenshot {
+				screenshotsFound++
+				if screenshotsFound > maxScreenshots {
+					// Prune!
+					for _, part := range content.Parts {
+						if part.InlineData != nil {
+							part.InlineData = nil // Remove blob
+						}
+						if part.FunctionResponse != nil {
+							for _, frPart := range part.FunctionResponse.Parts {
+								if frPart.InlineData != nil {
+									frPart.InlineData = nil // Remove blob
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 
