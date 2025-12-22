@@ -10,7 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ghchinoy/website-assistant/pkg/computer"
+	"github.com/ghchinoy/website-assistant/pkg/tui"
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 )
@@ -20,6 +22,7 @@ func main() {
 	makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
 	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
 	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
+	useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
 	flag.Parse()
 
 	// Handle Ctrl+C
@@ -43,27 +46,56 @@ func main() {
 	}
 
 	sessionID := uuid.New().String()
-	fmt.Printf("Starting Session: %s\n", sessionID)
 
-	// Interactive Safety Handler
-	safetyHandler := func(explanation string) bool {
-		fmt.Printf("\n[SAFETY ALERT] The model flagged a safety concern:\n%s\n", explanation)
-		fmt.Print("Do you want to proceed? (y/N): ")
-		var response string
-		_, err := fmt.Scanln(&response)
-		if err != nil {
-			return false // Assume no on error/EOF
+	if !*useTUI {
+		fmt.Printf("Starting Session: %s\n", sessionID)
+		// Interactive Safety Handler
+		safetyHandler := func(explanation string) bool {
+			fmt.Printf("\n[SAFETY ALERT] The model flagged a safety concern:\n%s\n", explanation)
+			fmt.Print("Do you want to proceed? (y/N): ")
+			var response string
+			_, err := fmt.Scanln(&response)
+			if err != nil {
+				return false // Assume no on error/EOF
+			}
+			return response == "y" || response == "Y" || response == "yes"
 		}
-		return response == "y" || response == "Y" || response == "yes"
+
+		if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots); err != nil {
+			if err == context.Canceled {
+				fmt.Println("\nRun cancelled by user.")
+			} else {
+				log.Fatalf("Computer Use failed: %v", err)
+			}
+		}
+		return
 	}
 
-	// We pass the signal-aware context to Run. 
-	// If the user hits Ctrl+C, ctx.Done() will close, and chromedp/genai should terminate gracefully.
-	if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots); err != nil {
-		if err == context.Canceled {
-			fmt.Println("\nRun cancelled by user.")
-		} else {
-			log.Fatalf("Computer Use failed: %v", err)
+	// TUI Mode
+	m := tui.NewModel()
+	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Run agent in goroutine
+	go func() {
+		observer := m.GetObserver(p)
+		safetyHandler := m.GetSafetyHandler(p)
+
+		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, observer, safetyHandler, *maxTurns, *maxScreenshots)
+		if err != nil {
+			if err != context.Canceled {
+				p.Send(computer.Event{
+					Type:    computer.EventError,
+					Message: fmt.Sprintf("Fatal: %v", err),
+				})
+			}
 		}
+		p.Send(computer.Event{
+			Type:    computer.EventStatus,
+			Message: "Session Finished.",
+		})
+	}()
+
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("TUI Error: %v", err)
 	}
 }
