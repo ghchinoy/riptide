@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2025-12-21
+### Added
+- **Terminal UI (TUI):** Launched a rich, interactive Terminal UI built with Bubble Tea.
+  - Real-time status updates with spinners.
+  - Live "Thinking" and "Action" stream from the Gemini model.
+  - Integrated viewport for scrolling through agent logs.
+  - Interactive Safety Prompts directly within the TUI (y/n confirmation).
+- **Graceful Termination:** Improved TUI handling for `Ctrl+C` and session completion.
+
 ## [0.2.0] - 2025-12-15
 ### Added
 - **Reliability:** Implemented "Euclidean Aim Assist" and "Smart JS Focus" to solve coordinate drift and focus loss.
