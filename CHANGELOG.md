@@ -1,18 +1,19 @@
-## 2025-12-14
-- Update Documentation (website-assistant-ab6)
-- Session Management (website-assistant-9z0)
-- Resilience & Experimentation (website-assistant-i8d)
-- Testing Infrastructure & Verification (website-assistant-zh0)
-- Create Go Test Server (website-assistant-i8d.1)
-- Handle safety_decision (website-assistant-72i)
-- Visual Verification GIF (website-assistant-zh0.3)
-- Unit Tests for Executor (website-assistant-zh0.2)
-- Docs Interaction Diagram (website-assistant-2fo)
-- Truncate logs (website-assistant-w3a)
-- Handle open_web_browser tool (website-assistant-pjx)
-- Debug 400 Invalid Argument (website-assistant-lhr)
-- Save debug screenshots (website-assistant-evt)
-- Configure Gemini Client for Computer Use (website-assistant-26b)
-- Implement Chromedp Executor (website-assistant-vuu)
-- Implement Computer Use Main Loop (website-assistant-bc2)
+# Changelog
 
+## [0.2.0] - 2025-12-15
+### Added
+- **Reliability:** Implemented "Euclidean Aim Assist" and "Smart JS Focus" to solve coordinate drift and focus loss.
+- **Capabilities:** Added `drag_and_drop` and `hover_at` support via `chromedp/cdproto/input`.
+- **Safety:** Added interactive `SafetyHandler` for human-in-the-loop confirmation of safety barriers (CAPTCHAs).
+- **Optimization:** Added `-max-screenshots` flag to prune old screenshots from history, enabling long-running sessions.
+- **Observability:** Added structured events (`thinking`, `action`) and GIF generation.
+- **Documentation:** Added `docs/concepts.md`, `docs/lessons_learned.md`, and `docs/test_scenarios.md`.
+
+### Changed
+- Refactored `computer.Run` to use the Event Observer pattern.
+- Updated `main.go` to handle `Ctrl+C` gracefully.
+
+## [0.1.0] - Initial Release
+- Basic Computer Use agent loop.
+- `chromedp` integration.
+- `click`, `type`, `scroll` tools.

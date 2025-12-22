@@ -65,6 +65,19 @@ go run cmd/testserver/main.go &
 go run main.go -prompt "Go to http://localhost:8080, enter 'Agent Smith' as the name, and click Submit." -gif
 ```
 
+## Configuration Flags
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `-prompt` | (Default Google Doodle query) | The instruction for the agent. |
+| `-gif` | `false` | Generate a `session.gif` replay of the run. |
+| `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
+| `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
+
+## Testing Scenarios
+We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.
+See [Test Scenarios](docs/test_scenarios.md) for details.
+
 ## Building Custom Tools
 
 This repository is structured to be extended.
