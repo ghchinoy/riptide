@@ -39,14 +39,21 @@ export GOOGLE_CLOUD_LOCATION="us-central1" # Ensure model availability in this r
 
 ## Quick Start
 
-### 1. General Assistant
-Run the agent with a natural language prompt. It will handle the rest.
+### 1. General Assistant (Now with TUI)
+Run the agent with a natural language prompt. By default, it now launches a rich **Terminal UI** for real-time monitoring.
 
 ```bash
 go run main.go -prompt "Go to https://google.com and search for 'Gemini Computer Use Go SDK'"
 ```
 
-### 2. Visual Debugging (The "Black Box" Recorder)
+### 2. Classic Logging Mode
+If you prefer standard stdout logging or are running in a non-interactive environment, disable the TUI:
+
+```bash
+go run main.go -prompt "..." -tui=false
+```
+
+### 3. Visual Debugging (The "Black Box" Recorder)
 Use the `-gif` flag to generate a replay of the agent's session. This is crucial for debugging *why* an agent failed or verifying a test run.
 
 ```bash
@@ -70,6 +77,7 @@ go run main.go -prompt "Go to http://localhost:8080, enter 'Agent Smith' as the 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
 | `-prompt` | (Default Google Doodle query) | The instruction for the agent. |
+| `-tui` | `true` | Use the interactive Terminal UI. |
 | `-gif` | `false` | Generate a `session.gif` replay of the run. |
 | `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
 | `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
