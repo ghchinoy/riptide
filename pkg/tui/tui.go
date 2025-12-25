@@ -46,13 +46,14 @@ type Model struct {
 	width    int
 	height   int
 	ready    bool
-	
+	autoExit bool
+
 	// Safety handling
 	safetyPrompt  string
 	safetyChannel chan bool
 }
 
-func NewModel() Model {
+func NewModel(autoExit bool) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -61,6 +62,7 @@ func NewModel() Model {
 		spinner:       s,
 		status:        "Initializing...",
 		safetyChannel: make(chan bool),
+		autoExit:      autoExit,
 	}
 }
 
@@ -103,6 +105,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case computer.EventStatus:
 			m.status = msg.Message
+			if m.autoExit && msg.Message == "Session Finished." {
+				return m, tea.Quit
+			}
 		case computer.EventThinking:
 			m.thinking = msg.Message
 		case computer.EventAction:

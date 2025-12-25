@@ -78,6 +78,7 @@ go run main.go -prompt "Go to http://localhost:8080, enter 'Agent Smith' as the 
 | :--- | :--- | :--- |
 | `-prompt` | (Default Google Doodle query) | The instruction for the agent. |
 | `-tui` | `true` | Use the interactive Terminal UI. |
+| `-auto-exit` | `false` | Automatically exit the TUI when the session finishes. |
 | `-gif` | `false` | Generate a `session.gif` replay of the run. |
 | `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
 | `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
