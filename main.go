@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"os/signal"
 	"syscall"
@@ -23,6 +24,7 @@ func main() {
 	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
 	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
 	useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
+	autoExit := flag.Bool("auto-exit", false, "Automatically exit the TUI when the session finishes.")
 	flag.Parse()
 
 	// Handle Ctrl+C
@@ -46,6 +48,19 @@ func main() {
 	}
 
 	sessionID := uuid.New().String()
+
+	if *useTUI {
+		// Create logs directory if it doesn't exist
+		if err := os.MkdirAll("logs", 0755); err != nil {
+			log.Fatalf("Failed to create logs directory: %v", err)
+		}
+		// Redirect log output to a file for this session
+		logFile, err := os.OpenFile(fmt.Sprintf("logs/session_%s.log", sessionID), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err == nil {
+			log.SetOutput(logFile)
+			defer logFile.Close()
+		}
+	}
 
 	if !*useTUI {
 		fmt.Printf("Starting Session: %s\n", sessionID)
@@ -72,7 +87,7 @@ func main() {
 	}
 
 	// TUI Mode
-	m := tui.NewModel()
+	m := tui.NewModel(*autoExit)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	// Run agent in goroutine
@@ -89,6 +104,11 @@ func main() {
 				})
 			}
 		}
+		
+		if *autoExit {
+			time.Sleep(2 * time.Second)
+		}
+
 		p.Send(computer.Event{
 			Type:    computer.EventStatus,
 			Message: "Session Finished.",

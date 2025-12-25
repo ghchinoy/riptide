@@ -7,6 +7,8 @@
   - Live "Thinking" and "Action" stream from the Gemini model.
   - Integrated viewport for scrolling through agent logs.
   - Interactive Safety Prompts directly within the TUI (y/n confirmation).
+- **Configuration:** Added `-auto-exit` flag to automatically close the TUI upon completion.
+- **Reliability:** Improved TUI stability by redirecting standard logs to session-specific files in `logs/`.
 - **Graceful Termination:** Improved TUI handling for `Ctrl+C` and session completion.
 
 ## [0.2.0] - 2025-12-15
