@@ -31,7 +31,7 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 	}
 
 	res := map[string]interface{}{}
-	
+
 	// Fallback for "url" being passed as a top-level arg (sometimes happens with raw model calls)
 	if action == "" && call.Args["url"] != nil {
 		action = "navigate"
@@ -50,34 +50,52 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 
 	switch action {
 	case "mouse_click", "left_click", "click", "click_at":
-		msg, err = handleMouseClick(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		msg, err = handleMouseClick(execCtx, call.Args, width, height)
+		cancel()
 	case "type", "input_text", "type_text_at":
-		msg, err = handleType(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		msg, err = handleType(execCtx, call.Args, width, height)
+		cancel()
 	case "key", "press_key", "key_combination":
-		msg, err = handleKey(ctx, call.Args)
+		execCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		msg, err = handleKey(execCtx, call.Args)
+		cancel()
 	case "scroll", "scroll_document", "scroll_at":
-		msg, err = handleScroll(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		msg, err = handleScroll(execCtx, call.Args, width, height)
+		cancel()
 	case "drag_and_drop":
-		msg, err = handleDragAndDrop(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		msg, err = handleDragAndDrop(execCtx, call.Args, width, height)
+		cancel()
 	case "hover", "hover_at":
-		msg, err = handleHover(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		msg, err = handleHover(execCtx, call.Args, width, height)
+		cancel()
 	case "wait", "wait_5_seconds":
-		msg, err = handleWait(ctx, call.Args)
+		msg, err = handleWait(ctx, call.Args) // handleWait has its own sleep
 	case "get_computed_style", "inspect_element":
-		msg, err = handleGetComputedStyle(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		msg, err = handleGetComputedStyle(execCtx, call.Args, width, height)
+		cancel()
 	case "get_page_layout", "scan_page":
-		msg, err = handleGetPageLayout(ctx, call.Args, width, height)
+		execCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		msg, err = handleGetPageLayout(execCtx, call.Args, width, height)
+		cancel()
 	case "navigate":
-		msg, err = handleNavigate(ctx, call.Args)
+		execCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		msg, err = handleNavigate(execCtx, call.Args)
+		cancel()
 	case "open_web_browser":
 		// Already open, just acknowledge
 		msg = "browser_opened"
 	default:
 		return nil, fmt.Errorf("unknown action: %s", action)
 	}
-	
+
 	res["output"] = msg
-	
+
 	// Fetch actual URL
 	var currentURL string
 	if err := chromedp.Run(ctx, chromedp.Evaluate("window.location.href", &currentURL)); err != nil {
@@ -85,7 +103,7 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 		currentURL = "unknown"
 	}
 	res["url"] = currentURL
-	
+
 	return res, err
 }
 
@@ -128,77 +146,173 @@ func getCoords(args map[string]interface{}, width, height int) (float64, float64
 }
 
 func handleMouseClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+
 	x, y, err := getCoords(args, width, height)
+
 	if err != nil {
+
 		return nil, err
+
 	}
+
 	log.Printf("Clicking at %f, %f", x, y)
-	
-	// 1. Physical Click
-	if err := chromedp.Run(ctx, chromedp.MouseClickXY(x, y)); err != nil {
-		return nil, err
+
+	// Diagnostic: log current window info
+
+	var winInfo string
+
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`"win:" + window.innerWidth + "x" + window.innerHeight + " vp:" + document.documentElement.clientWidth + "x" + document.documentElement.clientHeight`, &winInfo)); err == nil {
+
+		log.Printf("Dimension Info: %s", winInfo)
+
 	}
-	
+
+	// Diagnostic: what is at these coords?
+
+	var elementAt string
+
+	if err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("document.elementFromPoint(%f, %f)?.tagName || 'NONE'", x, y), &elementAt)); err == nil {
+
+		log.Printf("Element at click coords: %s", elementAt)
+
+	}
+
+	// 1. Physical Click
+
+	if err := chromedp.Run(ctx, chromedp.MouseClickXY(x, y)); err != nil {
+
+		return nil, err
+
+	}
+
+	// Small wait for effects
+
+	chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
+
 	// 2. JS Focus Fallback (Spatial Aim Assist)
+
 	// If the model clicked a focusable element (input, button), ensure it gets focus.
+
 	// If it missed, find the NEAREST focusable element within a radius.
+
 	var foundTag string
+
 	err = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
-		(function(x, y) {
-			const RADIUS = 100;
-			let bestCandidate = null;
-			let minDist = Infinity;
 
-			// Helper to calc distance from point to rect center
-			function getDist(rect) {
-				const centerX = rect.left + rect.width / 2;
-				const centerY = rect.top + rect.height / 2;
-				return Math.hypot(centerX - x, centerY - y);
-			}
+			(function(x, y) {
 
-			// 1. Direct Hit Check
-			let hit = document.elementFromPoint(x, y);
-			if (hit && (hit.tagName === 'INPUT' || hit.tagName === 'TEXTAREA' || hit.tagName === 'BUTTON' || hit.hasAttribute('tabindex'))) {
-				hit.focus();
-				if (hit.tagName === 'BUTTON' || (hit.tagName === 'INPUT' && hit.type === 'submit')) {
-					hit.click();
-					return "DIRECT->" + hit.tagName + " (CLICKED)";
-				}
-				return "DIRECT->" + hit.tagName;
-			}
+				const RADIUS = 100;
 
-			// 2. Proximity Search
-			const candidates = document.querySelectorAll('input, textarea, button, [tabindex]');
-			candidates.forEach(el => {
-				const rect = el.getBoundingClientRect();
-				// Check if visible
-				if (rect.width === 0 || rect.height === 0) return;
-				
-				const dist = getDist(rect);
-				if (dist < RADIUS && dist < minDist) {
-					minDist = dist;
-					bestCandidate = el;
-				}
-			});
+				let bestCandidate = null;
 
-			if (bestCandidate) {
-				bestCandidate.focus();
-				// If it's a button, clicking physically might have missed, so help it out.
-				if (bestCandidate.tagName === 'BUTTON' || (bestCandidate.tagName === 'INPUT' && bestCandidate.type === 'submit')) {
-					bestCandidate.click();
-					return "PROXIMITY(" + Math.round(minDist) + "px)->" + bestCandidate.tagName + " (CLICKED)";
-				}
-				return "PROXIMITY(" + Math.round(minDist) + "px)->" + bestCandidate.tagName;
-			}
+				let minDist = Infinity;
 
-			return hit ? hit.tagName + " (No Target Found)" : "NONE";
-		})(%f, %f)
-	`, x, y), &foundTag))
 	
+
+				function getDeepElement(x, y) {
+
+					let el = document.elementFromPoint(x, y);
+
+					while (el && el.shadowRoot) {
+
+						const inner = el.shadowRoot.elementFromPoint(x, y);
+
+						if (!inner || inner === el) break;
+
+						el = inner;
+
+					}
+
+					return el;
+
+				}
+
+	
+
+				function getDist(rect) {
+
+					const centerX = rect.left + rect.width / 2;
+
+					const centerY = rect.top + rect.height / 2;
+
+					return Math.hypot(centerX - x, centerY - y);
+
+				}
+
+	
+
+				// 1. Direct Hit Check (Deep)
+
+				let hit = getDeepElement(x, y);
+
+				if (hit && (hit.tagName === 'INPUT' || hit.tagName === 'TEXTAREA' || hit.tagName === 'BUTTON' || hit.hasAttribute('tabindex'))) {
+
+					hit.focus();
+
+					if (hit.tagName === 'BUTTON' || (hit.tagName === 'INPUT' && (hit.type === 'submit' || hit.type === 'range'))) {
+
+						// hit.click(); // Be careful with double-clicks
+
+						return "DIRECT->" + hit.tagName + " (FOCUSED)";
+
+					}
+
+					return "DIRECT->" + hit.tagName;
+
+				}
+
+	
+
+				// 2. Proximity Search
+
+				const candidates = document.querySelectorAll('input, textarea, button, [tabindex], [role="button"], [role="slider"]');
+
+				candidates.forEach(el => {
+
+					const rect = el.getBoundingClientRect();
+
+					if (rect.width === 0 || rect.height === 0) return;
+
+					
+
+					const dist = getDist(rect);
+
+					if (dist < RADIUS && dist < minDist) {
+
+						minDist = dist;
+
+						bestCandidate = el;
+
+					}
+
+				});
+
+	
+
+				if (bestCandidate) {
+
+					bestCandidate.focus();
+
+					// Use center-scrolling to ensure it stays in view but ideally not jumpy
+
+					bestCandidate.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+
+					return "PROXIMITY(" + Math.round(minDist) + "px)->" + bestCandidate.tagName;
+
+				}
+
+	
+
+				return hit ? hit.tagName + " (No Target Found)" : "NONE";
+
+			})(%f, %f)
+
+		`, x, y), &foundTag))
+
 	if err == nil {
 		log.Printf("JS Focus Result: %s", foundTag)
 	}
-	
+
 	return "clicked", err
 }
 
@@ -211,7 +325,7 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 		// Short wait for focus
 		chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 	}
-	
+
 	// Verify focus (optional debug)
 	var activeTag string
 	if err := chromedp.Run(ctx, chromedp.Evaluate("document.activeElement.tagName", &activeTag)); err == nil {
@@ -223,10 +337,10 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 		text, _ = args["value"].(string)
 	}
 	log.Printf("Typing: %s", text)
-	
+
 	// Try physical typing first (optional, or skip to JS if we trust it more)
-	// err := chromedp.Run(ctx, chromedp.KeyEvent(text)) 
-	
+	// err := chromedp.Run(ctx, chromedp.KeyEvent(text))
+
 	// Robust method: JS Injection into active element
 	// This handles cases where headless focus is wonky or KeyEvents are dropped.
 	// We dispatch 'input' and 'change' events so React/Frameworks react to it.
@@ -263,7 +377,7 @@ func handleKey(ctx context.Context, args map[string]interface{}) (interface{}, e
 	// If it's a special key, we might need a lookup table.
 	key, _ := args["text"].(string)
 	if key == "" {
-		key, _ = args["value"].(string) 
+		key, _ = args["value"].(string)
 	}
 	// Python agent uses "keys" string "Ctrl+C" etc.
 	if k, ok := args["keys"].(string); ok {
@@ -274,7 +388,7 @@ func handleKey(ctx context.Context, args map[string]interface{}) (interface{}, e
 	if key == "Enter" || key == "return" {
 		key = "\r"
 	}
-	
+
 	log.Printf("Pressing Key: %s", key)
 	err := chromedp.Run(ctx, chromedp.KeyEvent(key))
 	return "pressed", err
@@ -293,11 +407,25 @@ func handleScroll(ctx context.Context, args map[string]interface{}, width, heigh
 		dy = v
 	}
 
+	// Handle semantic directions (website-assistant-bz4)
+	if direction, ok := args["direction"].(string); ok {
+		switch direction {
+		case "down":
+			dy = 500
+		case "up":
+			dy = -500
+		case "left":
+			dx = -500
+		case "right":
+			dx = 500
+		}
+	}
+
 	// Handle normalized scrolling if delta is large (e.g. 0-1000)
-	// But usually scrollBy is in pixels. 
+	// But usually scrollBy is in pixels.
 	// If the model sends normalized coordinates, we should denormalize.
 	// However, scroll deltas are often relative pixels.
-	
+
 	// If coordinates are provided, scroll that point into view or scroll TO it.
 	if args["x"] != nil && args["y"] != nil {
 		x, y, _ := getCoords(args, width, height)
@@ -347,40 +475,48 @@ func handleDragAndDrop(ctx context.Context, args map[string]interface{}, width, 
 
 	log.Printf("Dragging from (%f, %f) to (%f, %f)", x1, y1, x2, y2)
 
-	// Execute Drag Sequence using low-level Input domain
-	// Move -> Down -> Wait -> Move (Drag) -> Wait -> Up
+	// Diagnostic: log elements at start and end
+	var elementStart string
+	if err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("document.elementFromPoint(%f, %f)?.tagName || 'NONE'", x1, y1), &elementStart)); err == nil {
+		log.Printf("Element at drag start: %s", elementStart)
+	}
+	var elementEnd string
+	if err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("document.elementFromPoint(%f, %f)?.tagName || 'NONE'", x2, y2), &elementEnd)); err == nil {
+		log.Printf("Element at drag end: %s", elementEnd)
+	}
+
+	// Execute Drag Sequence
 	err = chromedp.Run(ctx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Move to start
+			log.Printf("Dispatching MouseMoved to start")
 			if err := input.DispatchMouseEvent(input.MouseMoved, x1, y1).Do(ctx); err != nil {
 				return err
 			}
-			// Mouse Down (Left Button)
-			// ClickCount 1 is standard for a click/drag start
+			log.Printf("Dispatching MousePressed")
 			if err := input.DispatchMouseEvent(input.MousePressed, x1, y1).WithButton("left").WithClickCount(1).Do(ctx); err != nil {
 				return err
 			}
 			return nil
 		}),
-		chromedp.Sleep(100*time.Millisecond),
+		chromedp.Sleep(200*time.Millisecond),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Drag to end
-			// buttons=1 means Left Button is held down during move (1 = Left, 2 = Right, 4 = Middle)
-			// Wait, WithButtons takes an int.
+			log.Printf("Dispatching MouseMoved to end")
 			if err := input.DispatchMouseEvent(input.MouseMoved, x2, y2).WithButtons(1).Do(ctx); err != nil {
 				return err
 			}
 			return nil
 		}),
-		chromedp.Sleep(100*time.Millisecond),
+		chromedp.Sleep(200*time.Millisecond),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Mouse Up
+			log.Printf("Dispatching MouseReleased")
 			if err := input.DispatchMouseEvent(input.MouseReleased, x2, y2).WithButton("left").WithClickCount(1).Do(ctx); err != nil {
 				return err
 			}
 			return nil
 		}),
 	)
+	// Small wait for effects
+	chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 
 	return "dragged", err
 }
@@ -405,7 +541,7 @@ func handleGetComputedStyle(ctx context.Context, args map[string]interface{}, wi
 	}
 
 	log.Printf("Inspecting element at (%f, %f)", x, y)
-	
+
 	var style map[string]interface{}
 	err = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
 		(function(x, y) {
@@ -442,13 +578,13 @@ func handleGetComputedStyle(ctx context.Context, args map[string]interface{}, wi
 			};
 		})(%f, %f)
 	`, x, y), &style))
-	
+
 	return style, err
 }
 
 func handleGetPageLayout(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
 	log.Printf("Scanning page for interactive elements...")
-	
+
 	var elements []interface{}
 	err := chromedp.Run(ctx, chromedp.Evaluate(`
 		(function() {
@@ -485,6 +621,6 @@ func handleGetPageLayout(ctx context.Context, args map[string]interface{}, width
 			return results;
 		})()
 	`, &elements))
-	
+
 	return elements, err
 }

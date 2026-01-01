@@ -105,15 +105,10 @@ func main() {
 				})
 			}
 		}
-		
+
 		if *autoExit {
 			time.Sleep(2 * time.Second)
 		}
-
-		p.Send(computer.Event{
-			Type:    computer.EventStatus,
-			Message: "Session Finished.",
-		})
 	}()
 
 	if _, err := p.Run(); err != nil {

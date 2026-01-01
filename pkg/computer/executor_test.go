@@ -14,7 +14,7 @@ import (
 
 func TestExecute_Click(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Test standard click
 	call := &genai.FunctionCall{
 		Name: "mouse_click",
@@ -29,25 +29,25 @@ func TestExecute_Click(t *testing.T) {
 	// However, we can check if it *tried* to click.
 	// Our Execute function returns (interface{}, error).
 	// On success it returns "clicked".
-	
-	// Ideally we'd wrap the chromedp calls in an interface, but for a quick test 
+
+	// Ideally we'd wrap the chromedp calls in an interface, but for a quick test
 	// we just want to verify the switch statements and arg parsing work.
 	// The current implementation calls chromedp.Run immediately.
-	
-	// Let's refactor executor.go slightly to make it testable? 
+
+	// Let's refactor executor.go slightly to make it testable?
 	// Or just accept that we need a real context?
 	// Starting a real headless chrome for unit tests is heavy but possible.
-	
+
 	// Alternative: Verify the parsing logic in separate functions.
-	// The helper functions like getCoords are private. 
+	// The helper functions like getCoords are private.
 	// We should export them or test them via internal test.
-	
+
 	// Let's try testing `getCoords` and others by putting this test in `package computer`.
-	
+
 	// Actually, let's just run it. If it fails on chromedp.Run, we know it passed parsing.
 	_, err := Execute(ctx, call, 1000, 1000)
 	if err == nil {
-		// If it returns nil error, that means chromedp.Run succeeded? 
+		// If it returns nil error, that means chromedp.Run succeeded?
 		// Unlikely with empty context.
 		t.Log("Execution succeeded (unexpectedly?)")
 	} else {
@@ -62,18 +62,18 @@ func TestExecute_Click(t *testing.T) {
 func TestExecute_Denormalize(t *testing.T) {
 	// We can test denormalize if we export it or test internally.
 	// Since this file is `package computer`, we can access private `denormalize`.
-	
+
 	val := denormalize(500.0, 1920)
 	expected := 960.0
 	if val != expected {
 		t.Errorf("Expected %f, got %f", expected, val)
 	}
-	
+
 	val = denormalize(0.0, 1920)
 	if val != 0.0 {
 		t.Errorf("Expected 0, got %f", val)
 	}
-	
+
 	val = denormalize(1000.0, 1920)
 	if val != 1920.0 {
 		t.Errorf("Expected 1920, got %f", val)
@@ -86,8 +86,8 @@ func TestExecute_Type(t *testing.T) {
 		Name: "type_text_at",
 		Args: map[string]interface{}{
 			"text": "Hello",
-			"x": 500.0,
-			"y": 500.0,
+			"x":    500.0,
+			"y":    500.0,
 		},
 	}
 	// Should attempt click then type
@@ -104,8 +104,8 @@ func TestExecute_Scroll(t *testing.T) {
 	call := &genai.FunctionCall{
 		Name: "scroll_at",
 		Args: map[string]interface{}{
-			"x": 500.0,
-			"y": 500.0,
+			"x":         500.0,
+			"y":         500.0,
 			"direction": "down",
 		},
 	}
