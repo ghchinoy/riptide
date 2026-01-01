@@ -39,7 +39,23 @@ bd sync               # Sync with git
 *   **Audit Mode:** When running with `--mode audit`, focus on structural and visual health violations (contrast, overflow).
 *   **Full-Page Context:** If an interaction fails below the fold, check the `turn_N_full.png` screenshot in the session directory to see if the element was misaligned or moved.
 *   **Viewport Stability:** Be aware that some sites auto-scroll or resize on interaction. If the agent is stuck in a scroll loop, suggest using specific `click_at` coordinates on a non-moving anchor first.
+
+## Operational Persistence & Backend Debugging
+
+When managing background processes (like the Session Viewer backend):
+
+*   **Port Management:** Before starting a server, check for existing occupants: `lsof -i :<port>`. If a conflict exists (e.g. `media-manager`), pivot to an alternative port immediately.
+*   **Background Persistence:** Use `nohup` and log redirection to ensure the process survives shell detachment and provides a trail for debugging: 
+    `nohup ./binary > process.log 2>&1 &`
+*   **Verification:** Don't assume a background process is healthy. Verify with:
+    1.  `ps aux | grep binary` (Check if process exists)
+    2.  `lsof -i :<port>` (Check if it's listening)
+    3.  `curl -v http://localhost:<port>/health` (Check reachability)
+    4.  `cat process.log` (Check for immediate panics or errors)
+*   **Lifecycle Management:** Always `pkill <binary> || true` before rebuilding and restarting to avoid zombie processes or "address already in use" errors.
+
 - Work is NOT complete until `git push` succeeds
+
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds

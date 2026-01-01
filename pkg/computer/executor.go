@@ -87,6 +87,12 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 		execCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		msg, err = handleNavigate(execCtx, call.Args)
 		cancel()
+	case "search":
+		// Handle hallucinated 'search' tool by navigating to google
+		execCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		args := map[string]interface{}{"url": "https://www.google.com"}
+		msg, err = handleNavigate(execCtx, args)
+		cancel()
 	case "open_web_browser":
 		// Already open, just acknowledge
 		msg = "browser_opened"

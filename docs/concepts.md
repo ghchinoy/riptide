@@ -17,6 +17,11 @@ The framework is structured as a layered system where high-level visual intent i
 
 ### 1. The Action Executor (Physical Layer)
 The Executor is the bridge between the model's visual interpretation and the browser's DOM.
+*   **Standard Actions:** The agent supports the core Gemini Computer Use action set:
+    *   `mouse_move`, `left_click`, `right_click`, `middle_click`, `double_click`.
+    *   `left_click_drag` (Drag and Drop).
+    *   `key` (Special keys/combinations), `type` (Text entry).
+    *   `screenshot` (State capture), `cursor_position` (Coordinate verification).
 *   **Coordinate Denormalization:** Translates the model's 0-1000 coordinate system into the exact pixel dimensions of the current viewport.
 *   **Interaction Robustness:**
     *   **Spatial Aim Assist:** When a physical click is dispatched, the executor identifies the element at the coordinates. If the target is non-interactive, it performs a proximity search (Euclidean distance) to snap the interaction to the nearest focusable element.
@@ -25,7 +30,8 @@ The Executor is the bridge between the model's visual interpretation and the bro
 
 ### 2. Orchestration & Loop Management
 The Orchestration layer manages the lifecycle of a session.
-*   **State Observation:** Captures visual state (Screenshots) and optionally structural state (DOM/Accessibility Tree).
+*   **State Observation:** Captures visual state (Screenshots) and structural state (DOM/Accessibility Tree).
+    *   **Accessibility Tree (AXTree) Injection:** A future enhancement where a simplified, textual representation of the browser's accessibility tree is provided to the model. This allows the model to "read" the structure and values of interactive elements (like slider percentages or button labels) directly, complementing visual analysis and reducing errors from visual ambiguity.
 *   **Context Pruning:** To maintain efficiency within the model's token limit, the loop manages a sliding window of recent screenshots, removing older visual data while retaining the text-based reasoning history.
 *   **Safety Interception:** Intercepts `safety_decision` markers from the model, enabling automated acknowledgement or human-in-the-loop verification for sensitive actions.
 
@@ -38,6 +44,14 @@ While the agent can navigate visually, certain tasks are better handled programm
 This layer defines the environment in which the agent operates.
 *   **Session Persistence:** By mounting a persistent user data directory, the agent retains authentication state across runs.
 *   **Identity Injection:** Support for injecting auth tokens or cookies directly into the browser context, allowing the agent to bypass login flows and start directly on the target task.
+
+## Observability & Debugging
+
+The framework provides multiple layers of observability:
+*   **Terminal UI (TUI):** Real-time monitoring of thinking, actions, and status.
+*   **Structured Logs:** Detailed logs per session in `logs/session_<id>.log`.
+*   **Visual Replays:** High-resolution screenshots and animated GIFs.
+*   **Session Viewer:** A dedicated Lit-based web application for browsing session history and analyzing agent performance turn-by-turn.
 
 ## Deployment Scalability
 The decoupled nature of the **Orchestration** and **Executor** allows for various deployment models:
