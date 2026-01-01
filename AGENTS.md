@@ -32,9 +32,13 @@ bd sync               # Sync with git
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
+## Troubleshooting & Interaction
+
 *   **Visual & Structural Awareness:** Use `get_page_layout` to obtain a text-based map of interactive elements if the screenshot is ambiguous or if elements are off-screen.
 *   **Precision Verification:** Use `get_computed_style` to verify exact states (e.g., slider values, colors, visibility) that are hard to confirm via screenshot alone.
 *   **Audit Mode:** When running with `--mode audit`, focus on structural and visual health violations (contrast, overflow).
+*   **Full-Page Context:** If an interaction fails below the fold, check the `turn_N_full.png` screenshot in the session directory to see if the element was misaligned or moved.
+*   **Viewport Stability:** Be aware that some sites auto-scroll or resize on interaction. If the agent is stuck in a scroll loop, suggest using specific `click_at` coordinates on a non-moving anchor first.
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push

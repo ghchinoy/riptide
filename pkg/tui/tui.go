@@ -40,67 +40,48 @@ var (
 type eventMsg computer.Event
 
 type Model struct {
+	spinner spinner.Model
 
-	spinner      spinner.Model
-
-	viewport     viewport.Model
+	viewport viewport.Model
 
 	jsonViewport viewport.Model
 
-	logViewport  viewport.Model
+	logViewport viewport.Model
 
-	logs         []string
+	logs []string
 
-	status       string
+	status string
 
-	thinking     string
+	thinking string
 
-	action       string
+	action string
 
-	width        int
+	width int
 
-	height       int
+	height int
 
-	ready        bool
+	ready bool
 
-	autoExit     bool
+	autoExit bool
 
-	sessionID    string
+	sessionID string
 
+	// JSON View
 
+	lastJSON string
 
-		// JSON View
+	showJSON bool
 
+	showLogs bool
 
+	showHistory bool
 
-		lastJSON string
+	// Safety handling
 
+	finished bool
 
+	safetyPrompt string
 
-		showJSON bool
-
-
-
-		showLogs bool
-
-
-
-		showHistory bool
-
-
-
-	
-
-
-
-		// Safety handling
-
-
-
-	
-
-
-	safetyPrompt  string
 	safetyChannel chan bool
 }
 
@@ -189,13 +170,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
 			m.viewport.HighPerformanceRendering = false
-			
+
 			m.jsonViewport = viewport.New(msg.Width-4, msg.Height-8)
 			m.jsonViewport.HighPerformanceRendering = false
-			
+
 			m.logViewport = viewport.New(msg.Width-4, msg.Height-8)
 			m.logViewport.HighPerformanceRendering = false
-			
+
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
@@ -210,23 +191,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case computer.EventStatus:
 			m.status = msg.Message
-			if m.autoExit && msg.Message == "Session Finished." {
-				return m, tea.Quit
+			if msg.Message == "Session Finished." {
+				m.finished = true
+				if m.autoExit {
+					return m, tea.Quit
+				}
+			}
+			if strings.HasPrefix(msg.Message, "Turn") {
+				m.thinking = ""
+				m.action = ""
 			}
 		case computer.EventThinking:
 			m.thinking = msg.Message
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(msg.Message)
+			m.logs = append(m.logs, thinkingStyle.Render(wrapped))
 		case computer.EventAction:
 			m.action = msg.Message
-			m.logs = append(m.logs, actionStyle.Render(fmt.Sprintf("Action: %s", msg.Message)))
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(fmt.Sprintf("Action: %s", msg.Message))
+			m.logs = append(m.logs, actionStyle.Render(wrapped))
 		case computer.EventLog:
-			m.logs = append(m.logs, infoStyle.Render(msg.Message))
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(msg.Message)
+			m.logs = append(m.logs, infoStyle.Render(wrapped))
 		case computer.EventRaw:
 			if b, err := json.MarshalIndent(msg.Data, "", "  "); err == nil {
 				s := string(b)
 				// Truncate base64 strings (usually data:image/png;base64,...)
 				re := regexp.MustCompile(`"data":\s*"[^"]{100,}"`)
 				s = re.ReplaceAllString(s, `"data": "<base64 truncated>"`)
-				
+
 				m.lastJSON = s
 				m.jsonViewport.SetContent(m.lastJSON)
 			}
@@ -253,16 +245,26 @@ func (m Model) View() string {
 	}
 
 	header := titleStyle.Render(" Gemini Computer Use Agent ")
-	status := fmt.Sprintf("\n  %s %s", m.spinner.View(), statusStyle.Render(m.status))
-	
+
+	icon := m.spinner.View()
+	if m.finished {
+		icon = "✓"
+	}
+	status := fmt.Sprintf("\n  %s %s", icon, statusStyle.Render(m.status))
+
 	thinking := ""
 	if m.thinking != "" {
-		thinking = fmt.Sprintf("\n  %s", thinkingStyle.Render(m.thinking))
+		// Truncate to one line for the header
+		txt := m.thinking
+		if idx := strings.Index(txt, "\n"); idx != -1 {
+			txt = txt[:idx] + "..."
+		}
+		thinking = fmt.Sprintf("\n  %s", thinkingStyle.MaxWidth(m.width-4).Render(txt))
 	}
-	
+
 	action := ""
 	if m.action != "" {
-		action = fmt.Sprintf("\n  %s", actionStyle.Render(m.action))
+		action = fmt.Sprintf("\n  %s", actionStyle.MaxWidth(m.width-4).Render(m.action))
 	}
 
 	safety := ""
@@ -278,40 +280,40 @@ func (m Model) View() string {
 
 	help := infoStyle.Render(fmt.Sprintf("\n  q: quit | j: json | l: logs | h: hist | s: %s", m.sessionID))
 
-	mainView := fmt.Sprintf("%s%s%s%s\n\n%s%s%s", 
-		header, status, thinking, action, 
-		m.viewport.View(), 
+	mainView := fmt.Sprintf("%s%s%s%s\n\n%s%s%s",
+		header, status, thinking, action,
+		m.viewport.View(),
 		safety,
 		help)
 
 	if m.showHistory {
 		histHeader := titleStyle.Render(" Conversation History (Request) ")
 		histFooter := infoStyle.Render("\n  h/esc: back | arrows: scroll")
-		
+
 		wrapped := lipgloss.NewStyle().Width(m.width - 6).Render(m.lastJSON)
 		m.jsonViewport.SetContent(wrapped)
 
 		content := fmt.Sprintf("%s\n\n%s%s", histHeader, m.jsonViewport.View(), histFooter)
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, 
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 			lipgloss.NewStyle().Width(m.width-2).Height(m.height-4).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("99")).Padding(1).Render(content))
 	}
 
 	if m.showJSON {
 		jsonHeader := titleStyle.Render(" Raw Model JSON (Response) ")
 		jsonFooter := infoStyle.Render("\n  j/esc: back | arrows: scroll")
-		
+
 		wrapped := lipgloss.NewStyle().Width(m.width - 6).Render(m.lastJSON)
 		m.jsonViewport.SetContent(wrapped)
 
 		content := fmt.Sprintf("%s\n\n%s%s", jsonHeader, m.jsonViewport.View(), jsonFooter)
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, 
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 			lipgloss.NewStyle().Width(m.width-2).Height(m.height-4).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(1).Render(content))
 	}
 
 	if m.showLogs {
 		logHeader := titleStyle.Render(" Session Logs ")
 		logFooter := infoStyle.Render("\n  l/esc: back | arrows: scroll")
-		
+
 		// Load log file
 		if logData, err := os.ReadFile(fmt.Sprintf("logs/session_%s.log", m.sessionID)); err == nil {
 			wrapped := lipgloss.NewStyle().Width(m.width - 6).Render(string(logData))
@@ -319,7 +321,7 @@ func (m Model) View() string {
 		}
 
 		content := fmt.Sprintf("%s\n\n%s%s", logHeader, m.logViewport.View(), logFooter)
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, 
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 			lipgloss.NewStyle().Width(m.width-2).Height(m.height-4).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("212")).Padding(1).Render(content))
 	}
 

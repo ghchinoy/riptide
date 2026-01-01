@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"testing"
-	"time"
 
 	"google.golang.org/genai"
 )
@@ -44,7 +43,7 @@ func TestScenario_Lights(t *testing.T) {
 	// 3. Run Agent
 	sessionID := "test-integration-lights"
 	prompt := "Go to http://localhost:8081/, wait for tiles to appear, and set Great Room Lights and Main Bedroom Hallway lights to 15%. You will need to scroll."
-	
+
 	err = Run(ctx, client, sessionID, prompt, false, nil, nil, 10, 3, "default")
 	if err != nil {
 		t.Errorf("Scenario failed: %v", err)

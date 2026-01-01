@@ -42,6 +42,15 @@ We use the `bd` (Beads) tool for all issue tracking.
 
 
 
+## Reliability Patterns
+
+*   **Context Isolation:** Never inherit timeouts from initialization into the main loop. Always create fresh child contexts with specific timeouts for each `chromedp.Run`.
+*   **Viewport Stability:** Prefer a larger default viewport (e.g., 1280x1024) to reduce the likelihood of elements being pushed "below the fold" or into complex overflow containers.
+*   **Interaction Fallbacks:**
+    *   Use "Deep" element detection to penetrate Shadow DOM (found in many modern UI frameworks).
+    *   Combine physical mouse events with JS `focus()` and `scrollIntoView({block: "center"})` to ensure the target is ready for interaction.
+*   **TUI Event Handling:** Ensure the TUI maintains a history of "thinking" events. Models often emit multiple thoughts per turn, and overwriting a single string leads to loss of reasoning context.
+
 ## Lessons Learned
 
 *   **Coordinate Systems:** Gemini Computer Use outputs normalized (0-1000) coordinates. These *must* be denormalized to the browser's viewport size (e.g., 1024x768) before passing to `chromedp`.

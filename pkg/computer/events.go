@@ -4,14 +4,14 @@ package computer
 type EventType string
 
 const (
-	EventStatus  EventType = "status"
-	EventLog     EventType = "log"
-	EventError   EventType = "error"
-	EventScreen  EventType = "screen"
-	EventAction  EventType = "action"
-	EventSafety  EventType = "safety"
+	EventStatus   EventType = "status"
+	EventLog      EventType = "log"
+	EventError    EventType = "error"
+	EventScreen   EventType = "screen"
+	EventAction   EventType = "action"
+	EventSafety   EventType = "safety"
 	EventThinking EventType = "thinking"
-	EventRaw     EventType = "raw"
+	EventRaw      EventType = "raw"
 )
 
 // Event represents a single update from the computer loop.
