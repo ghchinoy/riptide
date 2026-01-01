@@ -4,7 +4,7 @@ digraph ComputerUseInteraction {
     edge [fontname="Helvetica", fontsize=10];
     
     User [shape=ellipse, fillcolor=lightblue, label="User"];
-    FileSystem [shape=folder, label="File System\n(screenshots/)", fillcolor=lightyellow];
+    FileSystem [shape=folder, label="File System\n(screenshots/ & logs/)", fillcolor=lightyellow];
     
     subgraph cluster_App {
         label = "Go Application";
@@ -13,8 +13,9 @@ digraph ComputerUseInteraction {
         fontname="Helvetica";
         
         Main [label="Main Entry\n(main.go)"];
-        ComputerRun [label="computer.Run\n(pkg/computer)"];
-        Executor [label="Executor\n(Map Actions)"];
+        Orchestration [label="Orchestration Loop\n(computer.Run)"];
+        Executor [label="Action Executor\n(executor.go)"];
+        AimAssist [label="Spatial Aim Assist\n& Shadow DOM", shape=note, fontsize=9];
     }
     
     subgraph cluster_External {
@@ -27,22 +28,24 @@ digraph ComputerUseInteraction {
     }
     
     User -> Main [label="Starts App\n(-prompt)"];
-    Main -> Chrome [label="Init Browser"];
-    Main -> ComputerRun [label="Start Loop"];
+    Main -> Chrome [label="Init Browser\n(1280x1024)"];
+    Main -> Orchestration [label="Start Loop"];
     
-    ComputerRun -> Chrome [label="1. CaptureScreenshot"];
-    Chrome -> ComputerRun [label="Image Data"];
-    ComputerRun -> FileSystem [label="2. Save PNG"];
+    Orchestration -> Chrome [label="1. Observe State\n(Screenshot + DOM)"];
+    Chrome -> Orchestration [label="State Data"];
+    Orchestration -> FileSystem [label="2. Save turn_N_post.png\n& turn_N_full.png"];
     
-    ComputerRun -> Gemini [label="3. GenerateContent\n(History + Screenshot)"];
-    Gemini -> ComputerRun [label="4. FunctionCall\n(e.g., click, type)"];
+    Orchestration -> Gemini [label="3. GenerateContent\n(History + Screenshot)"];
+    Gemini -> Orchestration [label="4. Multi-Part Response\n(Thinking + FunctionCalls)"];
     
-    ComputerRun -> Executor [label="5. Execute(FunctionCall)"];
-    Executor -> Chrome [label="6. Run Action\n(MouseClickXY, KeyEvent)"];
+    Orchestration -> Executor [label="5. Execute(Action)"];
+    Executor -> AimAssist [label="Refine Coords"];
+    Executor -> Chrome [label="6. CDP Commands\n(Mouse, Key, Touch)"];
     Chrome -> Executor [label="Action Result"];
-    Executor -> ComputerRun [label="ToolOutput"];
+    Executor -> Orchestration [label="ToolOutput\n(Success/Error)"];
     
-    ComputerRun -> Gemini [label="7. FunctionResponse\n(ToolOutput + New Screenshot)"];
+    Orchestration -> Gemini [label="7. FunctionResponse\n(Output + Verification)"];
     
-    // Feedback loop implied by 7->4
+    // Feedback loop
+    Gemini -> Orchestration [style=dotted, label="Next Turn"];
 }
