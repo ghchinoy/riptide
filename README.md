@@ -61,7 +61,23 @@ go run main.go -prompt "..." -gif
 ```
 *Output:* `screenshots/<session-uuid>/session.gif`
 
-### 3. Controlled Testing
+### 4. Web-Based Session Viewer (New!)
+Browse your session history, review agent reasoning, and view high-resolution turn-by-turn screenshot galleries in a beautiful web interface.
+
+**Build and Start:**
+```bash
+# 1. Build the Lit frontend
+(cd frontend && npm install && npm run build)
+
+# 2. Build the Go backend
+go build -o session-viewer cmd/session-viewer/main.go
+
+# 3. Start the viewer
+./session-viewer
+```
+*Access:* **`http://localhost:8083`**
+
+### 5. Controlled Testing
 The project includes a `testserver` to validate agent behavior against a controlled environment (no internet required).
 
 ```bash
