@@ -25,6 +25,7 @@ func main() {
 	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
 	useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
 	autoExit := flag.Bool("auto-exit", false, "Automatically exit the TUI when the session finishes.")
+	mode := flag.String("mode", "default", "The mode of operation (default, audit).")
 	flag.Parse()
 
 	// Handle Ctrl+C
@@ -76,7 +77,7 @@ func main() {
 			return response == "y" || response == "Y" || response == "yes"
 		}
 
-		if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots); err != nil {
+		if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
 			if err == context.Canceled {
 				fmt.Println("\nRun cancelled by user.")
 			} else {
@@ -87,7 +88,7 @@ func main() {
 	}
 
 	// TUI Mode
-	m := tui.NewModel(*autoExit)
+	m := tui.NewModel(sessionID, *autoExit)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	// Run agent in goroutine
@@ -95,7 +96,7 @@ func main() {
 		observer := m.GetObserver(p)
 		safetyHandler := m.GetSafetyHandler(p)
 
-		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, observer, safetyHandler, *maxTurns, *maxScreenshots)
+		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
 		if err != nil {
 			if err != context.Canceled {
 				p.Send(computer.Event{

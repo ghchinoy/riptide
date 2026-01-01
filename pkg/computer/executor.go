@@ -32,6 +32,11 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 
 	res := map[string]interface{}{}
 	
+	// Fallback for "url" being passed as a top-level arg (sometimes happens with raw model calls)
+	if action == "" && call.Args["url"] != nil {
+		action = "navigate"
+	}
+
 	// Handle safety_decision if present
 	if safety, ok := call.Args["safety_decision"].(map[string]interface{}); ok {
 		log.Printf("SAFETY DECISION: %v", safety)
@@ -58,6 +63,10 @@ func Execute(ctx context.Context, call *genai.FunctionCall, width, height int) (
 		msg, err = handleHover(ctx, call.Args, width, height)
 	case "wait", "wait_5_seconds":
 		msg, err = handleWait(ctx, call.Args)
+	case "get_computed_style", "inspect_element":
+		msg, err = handleGetComputedStyle(ctx, call.Args, width, height)
+	case "get_page_layout", "scan_page":
+		msg, err = handleGetPageLayout(ctx, call.Args, width, height)
 	case "navigate":
 		msg, err = handleNavigate(ctx, call.Args)
 	case "open_web_browser":
@@ -272,16 +281,52 @@ func handleKey(ctx context.Context, args map[string]interface{}) (interface{}, e
 }
 
 func handleScroll(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
-	// Scroll usually takes deltaX, deltaY or coordinate
-	// For now, simple scroll down if no args?
-	// Or "coordinate" to scroll TO?
-	// Let's assume standard "scroll" tool has "delta_y" or similar.
-	return "scrolled", nil
+	// Gemini Computer Use often uses scroll_at or scroll
+	// with delta_x, delta_y or a target coordinate.
+	dx := 0.0
+	dy := 0.0
+
+	if v, ok := args["delta_x"].(float64); ok {
+		dx = v
+	}
+	if v, ok := args["delta_y"].(float64); ok {
+		dy = v
+	}
+
+	// Handle normalized scrolling if delta is large (e.g. 0-1000)
+	// But usually scrollBy is in pixels. 
+	// If the model sends normalized coordinates, we should denormalize.
+	// However, scroll deltas are often relative pixels.
+	
+	// If coordinates are provided, scroll that point into view or scroll TO it.
+	if args["x"] != nil && args["y"] != nil {
+		x, y, _ := getCoords(args, width, height)
+		log.Printf("Scrolling to coordinate: %f, %f", x, y)
+		err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("window.scrollTo(%f, %f)", x, y), nil))
+		return "scrolled_to_coords", err
+	}
+
+	log.Printf("Scrolling by delta: dx=%f, dy=%f", dx, dy)
+	err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("window.scrollBy({top: %f, left: %f, behavior: 'smooth'})", dy, dx), nil))
+	if err != nil {
+		return nil, err
+	}
+	// Wait for smooth scroll
+	err = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+	return "scrolled", err
 }
 
 func handleWait(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	// Explicit wait
-	return "waited", nil
+	seconds := 2.0 // default
+	if s, ok := args["seconds"].(float64); ok {
+		seconds = s
+	} else if s, ok := args["value"].(float64); ok {
+		seconds = s
+	}
+
+	log.Printf("Waiting for %f seconds", seconds)
+	err := chromedp.Run(ctx, chromedp.Sleep(time.Duration(seconds)*time.Second))
+	return "waited", err
 }
 
 func handleDragAndDrop(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
@@ -351,4 +396,95 @@ func handleHover(ctx context.Context, args map[string]interface{}, width, height
 		return input.DispatchMouseEvent(input.MouseMoved, x, y).Do(ctx)
 	}))
 	return "hovered", err
+}
+
+func handleGetComputedStyle(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Inspecting element at (%f, %f)", x, y)
+	
+	var style map[string]interface{}
+	err = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
+		(function(x, y) {
+			const el = document.elementFromPoint(x, y);
+			if (!el) return { error: "no element at coordinates" };
+			
+			const computed = window.getComputedStyle(el);
+			const rect = el.getBoundingClientRect();
+			
+			return {
+				tagName: el.tagName,
+				id: el.id,
+				className: el.className,
+				value: el.value,
+				innerText: el.innerText,
+				ariaValueNow: el.getAttribute('aria-valuenow'),
+				ariaLabel: el.getAttribute('aria-label'),
+				computedStyle: {
+					margin: computed.margin,
+					padding: computed.padding,
+					color: computed.color,
+					backgroundColor: computed.backgroundColor,
+					display: computed.display,
+					visibility: computed.visibility,
+					opacity: computed.opacity,
+					border: computed.border
+				},
+				rect: {
+					top: rect.top,
+					left: rect.left,
+					width: rect.width,
+					height: rect.height
+				}
+			};
+		})(%f, %f)
+	`, x, y), &style))
+	
+	return style, err
+}
+
+func handleGetPageLayout(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	log.Printf("Scanning page for interactive elements...")
+	
+	var elements []interface{}
+	err := chromedp.Run(ctx, chromedp.Evaluate(`
+		(function() {
+			const results = [];
+			const interactive = document.querySelectorAll('button, input, textarea, a, [role="button"], [role="checkbox"], [role="slider"], [tabindex]');
+			
+			interactive.forEach(el => {
+				const rect = el.getBoundingClientRect();
+				if (rect.width === 0 || rect.height === 0) return;
+				
+				// Skip if far outside viewport if we want to be strict, 
+				// but let's return everything so model knows it needs to scroll.
+				
+				results.push({
+					tagName: el.tagName,
+					id: el.id,
+					className: el.className,
+					innerText: el.innerText || el.ariaLabel || el.placeholder || el.value || "unlabeled",
+					role: el.getAttribute('role'),
+					type: el.getAttribute('type'),
+					rect: {
+						x: Math.round(rect.left),
+						y: Math.round(rect.top),
+						width: Math.round(rect.width),
+						height: Math.round(rect.height)
+					},
+					// Normalized for Gemini (0-1000)
+					center_normalized: [
+						Math.round((rect.left + rect.width / 2) / window.innerWidth * 1000),
+						Math.round((rect.top + rect.height / 2) / window.innerHeight * 1000)
+					]
+				});
+			});
+			return results;
+		})()
+	`, &elements))
+	
+	return elements, err
 }

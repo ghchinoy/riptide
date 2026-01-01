@@ -15,9 +15,11 @@ import (
 
 const ModelName = "gemini-2.5-computer-use-preview-10-2025"
 
-func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int) error {
+func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
+		// Always log to session log file as well
+		log.Printf("[%s] %s %+v", t, msg, data)
 		if observer != nil {
 			observer(Event{
 				Type:      t,
@@ -25,13 +27,6 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 				Data:      data,
 				Timestamp: time.Now().Unix(),
 			})
-		} else {
-			// Fallback to log if no observer
-			if t == EventError {
-				log.Printf("[ERROR] %s: %v", msg, data)
-			} else {
-				log.Printf("[%s] %s", t, msg)
-			}
 		}
 	}
 
@@ -42,36 +37,79 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	}
 
 	// 1. Setup Chromedp
+	emit(EventStatus, "Initializing browser allocator...", nil)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.WindowSize(1024, 768),
+		chromedp.NoSandbox,
+		chromedp.Headless,
+		chromedp.DisableGPU,
 	)
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 
-	ctx, cancel = chromedp.NewContext(allocCtx)
+	emit(EventStatus, "Creating browser context...", nil)
+	ctx, cancel = chromedp.NewContext(allocCtx, 
+		chromedp.WithLogf(log.Printf),
+	)
 	defer cancel()
 
-	// 2. Configure Model Config
+	// Listen for console logs
+
+
 	config := &genai.GenerateContentConfig{
 		Tools: []*genai.Tool{
 			{
 				ComputerUse: &genai.ComputerUse{},
 			},
 		},
+		SafetySettings: []*genai.SafetySetting{
+			{
+				Category:  genai.HarmCategoryHateSpeech,
+				Threshold: genai.HarmBlockThresholdBlockNone,
+			},
+			{
+				Category:  genai.HarmCategoryDangerousContent,
+				Threshold: genai.HarmBlockThresholdBlockNone,
+			},
+			{
+				Category:  genai.HarmCategoryHarassment,
+				Threshold: genai.HarmBlockThresholdBlockNone,
+			},
+			{
+				Category:  genai.HarmCategorySexuallyExplicit,
+				Threshold: genai.HarmBlockThresholdBlockNone,
+			},
+		},
 	}
 
-	// 3. Main Loop
-	if err := chromedp.Run(ctx, chromedp.Navigate("about:blank")); err != nil {
-		return fmt.Errorf("failed to navigate to blank: %w", err)
+	// 3. Pre-flight Diagnostics
+	emit(EventStatus, "Running pre-flight diagnostics...", nil)
+	// Create a sub-context just for pre-flight
+	pfCtx, pfCancel := context.WithTimeout(ctx, 30*time.Second)
+	
+	if err := chromedp.Run(pfCtx, chromedp.Navigate("about:blank")); err != nil {
+		pfCancel()
+		return fmt.Errorf("ENVIRONMENT NOT READY: failed to launch browser or navigate to blank page: %w. Please ensure Chrome/Chromium is installed and accessible.", err)
 	}
+	var finalURL string
+	if err := chromedp.Run(pfCtx, chromedp.Location(&finalURL)); err == nil {
+		log.Printf("Pre-flight final URL: %s", finalURL)
+	}
+	pfCancel()
+	emit(EventStatus, "Environment ready.", nil)
 
 	var history []*genai.Content
 
 	// Initial user message
+	fullPrompt := prompt
+	if mode == "audit" {
+		fullPrompt += "\n\nAdditionally, perform a 'Visual Health' audit of the page. Identify contrast violations, elements overflowing containers, or inconsistent margins. Return your final report in a structured JSON format if possible."
+	}
+
 	history = append(history, &genai.Content{
 		Role: "user",
 		Parts: []*genai.Part{
-			{Text: prompt},
+			{Text: fullPrompt},
 		},
 	})
 
@@ -80,14 +118,33 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	emit(EventLog, fmt.Sprintf("Prompt: %s", prompt), nil)
 	
 	log.Println("Taking initial screenshot...")
+	time.Sleep(1 * time.Second) // Wait for browser to initialize
+	
 	var buf []byte
-	if err := chromedp.Run(ctx, chromedp.CaptureScreenshot(&buf)); err != nil {
-		return fmt.Errorf("failed to capture screenshot: %w", err)
+	screenshotCtx, screenshotCancel := context.WithTimeout(ctx, 10*time.Second)
+	err := chromedp.Run(screenshotCtx, 
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			log.Println("Internal: Executing CaptureScreenshot...")
+			return nil
+		}),
+		chromedp.CaptureScreenshot(&buf),
+	)
+	screenshotCancel()
+
+	if err != nil {
+		emit(EventError, "Failed to capture initial screenshot", err)
+		return fmt.Errorf("failed to capture initial screenshot: %w", err)
 	}
 	
 	filename := filepath.Join(outputDir, "initial.png")
 	if err := os.WriteFile(filename, buf, 0644); err != nil {
 		emit(EventLog, fmt.Sprintf("Warning: failed to save screenshot: %v", err), nil)
+	}
+
+	// Debug: Check if DOM is empty
+	var dom string
+	if err := chromedp.Run(ctx, chromedp.Evaluate("document.body ? document.body.innerText.substring(0, 500) : 'NO BODY'", &dom)); err == nil {
+		emit(EventLog, fmt.Sprintf("Initial DOM Content: %q", dom), nil)
 	}
 
 	history[0].Parts = append(history[0].Parts, &genai.Part{
@@ -121,27 +178,33 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	for i := 0; i < maxTurns; i++ {
 				emit(EventStatus, fmt.Sprintf("Turn %d/%d: Sending request...", i+1, maxTurns), nil)
 		
-				// Debug: Dump history compactly (Disabled for cleaner output, enable for deep debugging)
-				/*
-				if historyJSON, err := json.Marshal(history); err == nil {
-					// Truncate large base64 strings
-					// Compact JSON looks like "data":"..."
-					re := regexp.MustCompile(`"data":"[^"]{50,}"`)
-					truncated := re.ReplaceAllString(string(historyJSON), `"data":"<truncated>"`)
-					emit(EventLog, fmt.Sprintf("History: %s", truncated), nil)
-				}
-				*/
+		// Emit history (request) for TUI
+		emit(EventRaw, "History Request", map[string]interface{}{"type": "request", "history": history})
+
+		startTime := time.Now()
+		// Add a per-call timeout
+		genCtx, genCancel := context.WithTimeout(ctx, 90*time.Second)
+		resp, err := client.Models.GenerateContent(genCtx, ModelName, history, config)
+		genCancel()
 		
-				resp, err := client.Models.GenerateContent(ctx, ModelName, history, config)
+		duration := time.Since(startTime)
+		emit(EventLog, fmt.Sprintf("Model response received in %v", duration.Round(time.Millisecond)), nil)
+
 		if err != nil {
-			return fmt.Errorf("generate content failed: %w", err)
+			emit(EventError, fmt.Sprintf("Model call failed: %v", err), nil)
+			return fmt.Errorf("generate content failed (after %v): %w", duration, err)
 		}
 
+		log.Printf("Received response with %d candidates", len(resp.Candidates))
+		// Emit raw response for TUI/Debugging
+		emit(EventRaw, "Model Response", resp)
+
 		if len(resp.Candidates) == 0 {
-			emit(EventLog, "No candidates returned.", nil)
+			emit(EventLog, fmt.Sprintf("No candidates returned. Response: %+v", resp), nil)
 			break
 		}
 		cand := resp.Candidates[0]
+		emit(EventLog, fmt.Sprintf("Candidate 0 FinishReason: %s", cand.FinishReason), nil)
 		
 		// Add model response to history
 		history = append(history, cand.Content)
@@ -191,20 +254,33 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 
 				// Capture NEW screenshot for the next state
 				var newBuf []byte
-				if err := chromedp.Run(ctx, chromedp.Sleep(1*time.Second), chromedp.CaptureScreenshot(&newBuf)); err != nil {
-					emit(EventError, "Failed to capture post-action screenshot", err)
-				}
+				screenshotStart := time.Now()
 				
-				// Save post-action screenshot
-				postFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_post.png", i+1))
-				if err := os.WriteFile(postFilename, newBuf, 0644); err != nil {
-					emit(EventLog, fmt.Sprintf("Warning: failed to save post screenshot: %v", err), nil)
-				} else {
-					emit(EventStatus, fmt.Sprintf("Screenshot saved: %s", postFilename), nil)
+				// Try a few times or check readyState
+				err = chromedp.Run(ctx, 
+					chromedp.WaitReady("body"),
+					chromedp.CaptureScreenshot(&newBuf),
+				)
+				
+				if err != nil {
+					emit(EventLog, fmt.Sprintf("Screenshot failed after %v: %v. Retrying with simpler capture...", time.Since(screenshotStart), err), nil)
+					// Simple capture fallback
+					err = chromedp.Run(ctx, chromedp.CaptureScreenshot(&newBuf))
 				}
 
-				toolResp := &genai.Part{
-					FunctionResponse: &genai.FunctionResponse{
+				                if err != nil {
+									emit(EventError, "Failed to capture post-action screenshot", err)
+									// Don't just continue with nil buf, provide a placeholder or return error?
+									// For now, we MUST have a screenshot for the model's next turn.
+								}
+				
+								// Debug DOM content
+								var postDom string
+								if err := chromedp.Run(ctx, chromedp.Evaluate("document.body ? document.body.innerText.substring(0, 500) : 'NO BODY'", &postDom)); err == nil {
+									emit(EventLog, fmt.Sprintf("Post-Action DOM Content: %q", postDom), nil)
+								}
+				
+								toolResp := &genai.Part{					FunctionResponse: &genai.FunctionResponse{
 						Name: part.FunctionCall.Name,
 						Response: resultMap,
 						Parts: []*genai.FunctionResponsePart{

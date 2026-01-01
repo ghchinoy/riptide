@@ -33,12 +33,29 @@ We use the `bd` (Beads) tool for all issue tracking.
     *   **Truncate** large data blobs (like base64 images) in logs using regex to keep output readable.
 
 ## Testing & Verification
+
 *   **Unit Tests:** Write tests for `pkg/computer/executor.go` to verify coordinate denormalization and action mapping.
-*   **Integration Tests:** Use `cmd/testserver` for reliable, offline testing of form inputs and clicks.
+
+*   **Integration Tests:** Use `cmd/testserver` for reliable, offline testing of form inputs and clicks. This is a first-class citizen for simulating complex DOM behaviors (delayed elements, scrolling).
+
 *   **Visual Logs:** Always support a `-gif` flag to generate visual proof of the session using `ffmpeg`.
 
+
+
 ## Lessons Learned
+
 *   **Coordinate Systems:** Gemini Computer Use outputs normalized (0-1000) coordinates. These *must* be denormalized to the browser's viewport size (e.g., 1024x768) before passing to `chromedp`.
+
 *   **Interaction Loop:** The model often expects to see the result of its action. Capturing a screenshot *immediately* after an action (and potentially a short sleep) is critical for the next turn.
-*   **Safety Settings:** The model may trigger "Safety Decisions" (e.g., CAPTCHA detection). The agent must be prepared to handle `safety_decision` arguments in the function call, acknowledging them to proceed or terminate.
-*   **Session Management:** Organizing outputs by `session-uuid` allows for parallel runs and easier history tracking.
+
+*   **Context Management:** Crucial: Do not inherit timeouts from initialization (pre-flight) into the long-lived session context. This leads to `context canceled` errors during API calls.
+
+*   **Observability:** For headless debugging, the TUI must provide toggles for:
+
+    *   **Logs (l):** Real-time session logs.
+
+    *   **JSON (j):** Truncated model responses (truncate base64).
+
+    *   **History (h):** The full request history sent to the model.
+
+*   **Screenshot Reliability:** Initial screenshots can be blank if the renderer hasn't warmed up; add a 1s delay and `WaitReady("body")` checks.
