@@ -13,7 +13,7 @@ let SessionDetail = class SessionDetail extends LitElement {
     location;
     session = null;
     loading = false;
-    apiBase = 'http://localhost:8083/api/v1';
+    apiBase = '/api/v1';
     async updated(changedProps) {
         if (changedProps.has('location')) {
             const id = this.location.params.id;

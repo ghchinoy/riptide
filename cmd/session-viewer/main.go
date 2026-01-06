@@ -23,6 +23,7 @@ type Session struct {
 	Timestamp time.Time `json:"timestamp"`
 	Prompt    string    `json:"prompt"`
 	LogPath   string    `json:"log_path"`
+	Status    string    `json:"status"` // "active" or "finished"
 	Turns     []Turn    `json:"turns,omitempty"`
 }
 
@@ -117,13 +118,14 @@ func listSessions(w http.ResponseWriter, r *http.Request) {
 		info, _ := f.Info()
 		
 		// Peek at the log to get the prompt
-		prompt := peekPrompt(filepath.Join("logs", f.Name()))
+		prompt, status := peekMetadata(filepath.Join("logs", f.Name()))
 
 		sessions = append(sessions, Session{
 			ID:        id,
 			Timestamp: info.ModTime(),
 			Prompt:    prompt,
 			LogPath:   f.Name(),
+			Status:    status,
 		})
 	}
 
@@ -202,21 +204,29 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(session)
 }
 
-func peekPrompt(path string) string {
+func peekMetadata(path string) (string, string) {
 	file, err := os.Open(path)
 	if err != nil {
-		return ""
+		return "", "unknown"
 	}
 	defer file.Close()
 
+	prompt := ""
+	status := "active"
+
 	scanner := bufio.NewScanner(file)
-	promptRe := regexp.MustCompile(`\[log\] Prompt: (.+)`)
 	for scanner.Scan() {
-		if m := promptRe.FindStringSubmatch(scanner.Text()); len(m) > 1 {
-			return m[1]
+		line := scanner.Text()
+		if strings.Contains(line, "[log] Prompt:") {
+			if m := regexp.MustCompile(`\[log\] Prompt: (.+)`).FindStringSubmatch(line); len(m) > 1 {
+				prompt = m[1]
+			}
+		}
+		if strings.Contains(line, "Session Finished.") {
+			status = "finished"
 		}
 	}
-	return ""
+	return prompt, status
 }
 
 // Minimal helper to avoid importing strconv for one func

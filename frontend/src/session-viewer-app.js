@@ -18,17 +18,18 @@ import '@material/web/list/list-item.js';
 import '@material/web/progress/linear-progress.js';
 import '@material/web/divider/divider.js';
 // Sub-components (to be created)
-import './components/session-list.js';
-import './components/session-detail.js';
+import './components/session-list';
+import './components/session-detail';
 let SessionViewerApp = class SessionViewerApp extends LitElement {
     sessions = [];
     loading = false;
     outlet;
-    apiBase = 'http://localhost:8083/api/v1';
+    apiBase = '/api/v1';
     router = null;
     async firstUpdated() {
-        this._setupRouter();
+        console.log('session-viewer-app: firstUpdated');
         await this._fetchSessions();
+        this._setupRouter();
     }
     _setupRouter() {
         this.router = new Router(this.outlet);
@@ -38,13 +39,21 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
         ]);
     }
     async _fetchSessions() {
+        const url = `${this.apiBase}/sessions`;
+        console.log('Fetching sessions from:', url);
         this.loading = true;
         try {
-            const resp = await fetch(`${this.apiBase}/sessions`);
-            this.sessions = await resp.json();
+            const resp = await fetch(url);
+            if (!resp.ok)
+                throw new Error(`HTTP error! status: ${resp.status}`);
+            const data = await resp.json();
+            console.log('Fetched data:', data);
+            this.sessions = data;
+            console.log('this.sessions is now:', this.sessions);
+            this.requestUpdate();
         }
         catch (err) {
-            console.error('Failed to fetch sessions', err);
+            console.error('Failed to fetch sessions:', err);
         }
         finally {
             this.loading = false;
@@ -67,16 +76,21 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
 
         <main>
           <div class="sidebar">
-            <md-list>
+            <div style="padding: 16px; font-weight: bold; border-bottom: 1px solid #eee;">
+              Sessions (${this.sessions.length})
+            </div>
+            <ul style="list-style: none; padding: 0; margin: 0;">
               ${this.sessions.map(s => html `
-                <md-list-item @click=${() => Router.go(`/sessions/${s.id}`)}>
-                  <div slot="headline">${s.prompt.substring(0, 40)}...</div>
-                  <div slot="supporting-text">${new Date(s.timestamp).toLocaleString()}</div>
-                  <md-icon slot="start">history</md-icon>
-                </md-list-item>
-                <md-divider></md-divider>
+                <li @click=${() => Router.go(`/sessions/${s.id}`)} 
+                    style="padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer;">
+                  <div style="font-weight: 500;">${s.prompt?.substring(0, 40)}...</div>
+                  <div style="font-size: 0.8rem; color: #666;">
+                    ${new Date(s.timestamp).toLocaleString()}
+                    <span class="status-tag ${s.status}">${s.status}</span>
+                  </div>
+                </li>
               `)}
-            </md-list>
+            </ul>
           </div>
           <div id="outlet" class="content"></div>
         </main>
@@ -128,6 +142,24 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
       padding: 24px;
     }
     md-list-item { cursor: pointer; }
+    .status-tag {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 8px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .status-tag.active {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #2e7d32;
+    }
+    .status-tag.finished {
+      background: #f5f5f5;
+      color: #757575;
+      border: 1px solid #e0e0e0;
+    }
   `;
 };
 __decorate([
