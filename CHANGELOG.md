@@ -1,5 +1,11 @@
 ## 2026-01-06
+- Secure Avatar & Auth (website-assistant-2vn)
+- Implement Cookie Injection (website-assistant-2vn.1)
+- Agent Observability & Debugging (website-assistant-4fi)
+- Implement CAPTCHA/Bot Detection Handling (website-assistant-qtb)
+- Programmatic CAPTCHA Detection & Intervention (website-assistant-dc9)
 - Epic: Session Viewer (Lit + Go) (riptide-anw)
+- Epic: Session Viewer (Lit + Go) (website-assistant-anw)
 
 ## 2025-12-31
 - Improve Interaction Reliability (Click/Drag Debugging) (riptide-z2k)
@@ -12,7 +18,6 @@
 ## 2025-12-21
 - Refine Input & Logging (riptide-igu)
 - Refine Input & Logging (website-assistant-igu)
-- Interactive TUI with Bubble Tea (riptide-9dy)
 - Interactive TUI with Bubble Tea (website-assistant-9dy)
 - Integrate TUI with Safety Decisions (riptide-9dy.4)
 - Integrate TUI with Safety Decisions (website-assistant-9dy.4)
@@ -44,11 +49,6 @@
 - Write Architectural Primer (website-assistant-ron)
 
 ## 2025-12-14
-- Update Documentation (riptide-ab6)
-- Update Documentation (website-assistant-ab6)
-- Session Management (riptide-9z0)
-- Session Management (website-assistant-9z0)
-- Handle safety_decision (website-assistant-72i)
 - Debug 400 Invalid Argument (riptide-lhr)
 - Debug 400 Invalid Argument (website-assistant-lhr)
 - Configure Gemini Client for Computer Use (riptide-26b)
