@@ -16,7 +16,7 @@ let SessionList = class SessionList extends LitElement {
       </div>
     `;
     }
-    static styles = css `
+    static { this.styles = css `
     .welcome {
       display: flex;
       flex-direction: column;
@@ -27,7 +27,7 @@ let SessionList = class SessionList extends LitElement {
       text-align: center;
     }
     h1 { margin-top: 24px; font-weight: 400; }
-  `;
+  `; }
 };
 SessionList = __decorate([
     customElement('session-list')

@@ -21,11 +21,13 @@ import '@material/web/divider/divider.js';
 import './components/session-list';
 import './components/session-detail';
 let SessionViewerApp = class SessionViewerApp extends LitElement {
-    sessions = [];
-    loading = false;
-    outlet;
-    apiBase = '/api/v1';
-    router = null;
+    constructor() {
+        super(...arguments);
+        this.sessions = [];
+        this.loading = false;
+        this.apiBase = '/api/v1';
+        this.router = null;
+    }
     async firstUpdated() {
         console.log('session-viewer-app: firstUpdated');
         await this._fetchSessions();
@@ -100,7 +102,7 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
       </div>
     `;
     }
-    static styles = css `
+    static { this.styles = css `
     :host {
       --md-sys-color-primary: #6750a4;
       display: block;
@@ -163,7 +165,7 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
       color: #757575;
       border: 1px solid #e0e0e0;
     }
-  `;
+  `; }
 };
 __decorate([
     state(),

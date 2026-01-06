@@ -20,3 +20,8 @@ screenshots/*
 # Frontend
 frontend/dist/
 node_modules/
+
+# MCP Tools
+.genkit/
+
+.gemini/
