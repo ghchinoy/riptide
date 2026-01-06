@@ -32,7 +32,13 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
         this._setupRouter();
     }
     _setupRouter() {
-        this.router = new Router(this.outlet);
+        const outlet = this.renderRoot.querySelector('#outlet');
+        console.log('Setting up router. Outlet element:', outlet);
+        if (!outlet) {
+            console.error('Router outlet not found in renderRoot');
+            return;
+        }
+        this.router = new Router(outlet);
         this.router.setRoutes([
             { path: '/', component: 'session-list' },
             { path: '/sessions/:id', component: 'session-detail' },
@@ -47,9 +53,8 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
             if (!resp.ok)
                 throw new Error(`HTTP error! status: ${resp.status}`);
             const data = await resp.json();
-            console.log('Fetched data:', data);
             this.sessions = data;
-            console.log('this.sessions is now:', this.sessions);
+            console.log('Sessions updated, count:', this.sessions.length);
             this.requestUpdate();
         }
         catch (err) {
@@ -76,21 +81,19 @@ let SessionViewerApp = class SessionViewerApp extends LitElement {
 
         <main>
           <div class="sidebar">
-            <div style="padding: 16px; font-weight: bold; border-bottom: 1px solid #eee;">
-              Sessions (${this.sessions.length})
-            </div>
-            <ul style="list-style: none; padding: 0; margin: 0;">
+            <md-list>
               ${this.sessions.map(s => html `
-                <li @click=${() => Router.go(`/sessions/${s.id}`)} 
-                    style="padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer;">
-                  <div style="font-weight: 500;">${s.prompt?.substring(0, 40)}...</div>
-                  <div style="font-size: 0.8rem; color: #666;">
+                <md-list-item @click=${() => Router.go(`/sessions/${s.id}`)}>
+                  <div slot="headline">${s.prompt?.substring(0, 40)}...</div>
+                  <div slot="supporting-text">
                     ${new Date(s.timestamp).toLocaleString()}
                     <span class="status-tag ${s.status}">${s.status}</span>
                   </div>
-                </li>
+                  <md-icon slot="start">history</md-icon>
+                </md-list-item>
+                <md-divider></md-divider>
               `)}
-            </ul>
+            </md-list>
           </div>
           <div id="outlet" class="content"></div>
         </main>
