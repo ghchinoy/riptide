@@ -1,4 +1,4 @@
-# Website Assistant: The Gemini Computer Use Framework for Go
+# Riptide: The Gemini Computer Use Framework for Go
 
 *A foundational framework for building AI agents that see, reason, and interact with the web.*
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-**Website Assistant** is a robust reference implementation and framework for the **Gemini 2.5 Computer Use** model. Built in Go, it bridges the gap between Generative AI and the browser, allowing you to build agents that can navigate websites, interact with dynamic content, and process visual information just like a human user.
+**Riptide** is a robust reference implementation and framework for the **Gemini 2.5 Computer Use** model. Built in Go, it bridges the gap between Generative AI and the browser, allowing you to build agents that can navigate websites, interact with dynamic content, and process visual information just like a human user.
 
 While usable out-of-the-box as a general-purpose assistant, it is designed to be the **basis for specialized tools**:
 *   **Visual QA Testers:** Agents that explore web apps and report visual bugs.

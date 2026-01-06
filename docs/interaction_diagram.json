@@ -1,0 +1,200 @@
+{
+  "nodes": [
+    {
+      "id": "User",
+      "data": {
+        "label": "User"
+      },
+      "position": {
+        "x": -0.00047999999999959186,
+        "y": 67
+      },
+      "type": "default"
+    },
+    {
+      "id": "FileSystem",
+      "data": {
+        "label": "File System\\n(screenshots/)"
+      },
+      "position": {
+        "x": 628.8724,
+        "y": 124.19992000000002
+      },
+      "type": "default"
+    },
+    {
+      "id": "Main",
+      "data": {
+        "label": "Main Entry\\n(main.go)"
+      },
+      "position": {
+        "x": 145.546,
+        "y": 64.19992000000002
+      },
+      "type": "default"
+    },
+    {
+      "id": "ComputerRun",
+      "data": {
+        "label": "computer.Run\\n(pkg/computer)"
+      },
+      "position": {
+        "x": 310.59720000000004,
+        "y": 64.19992000000002
+      },
+      "type": "default"
+    },
+    {
+      "id": "Executor",
+      "data": {
+        "label": "Executor\\n(Map Actions)"
+      },
+      "position": {
+        "x": 630.0424,
+        "y": 64.19992000000002
+      },
+      "type": "default"
+    },
+    {
+      "id": "Gemini",
+      "data": {
+        "label": "Gemini Model\\n(Vertex AI)"
+      },
+      "position": {
+        "x": 597.6388000000001,
+        "y": 218.03364000000002
+      },
+      "type": "default"
+    },
+    {
+      "id": "Chrome",
+      "data": {
+        "label": "Headless Chrome\\n(chromedp)"
+      },
+      "position": {
+        "x": 617.1976,
+        "y": 304.19792
+      },
+      "type": "output"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "User",
+      "target": "Main",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "Starts App\\n(-prompt)"
+    },
+    {
+      "id": "e1",
+      "source": "Main",
+      "target": "ComputerRun",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "Start Loop"
+    },
+    {
+      "id": "e2",
+      "source": "Main",
+      "target": "Chrome",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "Init Browser"
+    },
+    {
+      "id": "e3",
+      "source": "ComputerRun",
+      "target": "FileSystem",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "2. Save PNG"
+    },
+    {
+      "id": "e4",
+      "source": "ComputerRun",
+      "target": "Executor",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "5. Execute(FunctionCall)"
+    },
+    {
+      "id": "e5",
+      "source": "ComputerRun",
+      "target": "Gemini",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "3. GenerateContent\\n(History + Screenshot)"
+    },
+    {
+      "id": "e6",
+      "source": "ComputerRun",
+      "target": "Gemini",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "7. FunctionResponse\\n(ToolOutput + New Screenshot)"
+    },
+    {
+      "id": "e7",
+      "source": "ComputerRun",
+      "target": "Chrome",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "1. CaptureScreenshot"
+    },
+    {
+      "id": "e8",
+      "source": "Executor",
+      "target": "ComputerRun",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "ToolOutput"
+    },
+    {
+      "id": "e9",
+      "source": "Executor",
+      "target": "Chrome",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "6. Run Action\\n(MouseClickXY, KeyEvent)"
+    },
+    {
+      "id": "e10",
+      "source": "Gemini",
+      "target": "ComputerRun",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "4. FunctionCall\\n(e.g., click, type)"
+    },
+    {
+      "id": "e11",
+      "source": "Chrome",
+      "target": "ComputerRun",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "Image Data"
+    },
+    {
+      "id": "e12",
+      "source": "Chrome",
+      "target": "Executor",
+      "markerEnd": {
+        "type": "arrowclosed"
+      },
+      "label": "Action Result"
+    }
+  ]
+}

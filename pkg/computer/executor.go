@@ -413,7 +413,7 @@ func handleScroll(ctx context.Context, args map[string]interface{}, width, heigh
 		dy = v
 	}
 
-	// Handle semantic directions (website-assistant-bz4)
+	// Handle semantic directions (riptide-bz4)
 	if direction, ok := args["direction"].(string); ok {
 		switch direction {
 		case "down":

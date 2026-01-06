@@ -1,6 +1,6 @@
-# Website Assistant: Architectural Concepts
+# Riptide: Architectural Concepts
 
-This document outlines the technical architecture of the **Website Assistant**. It defines the core components and their responsibilities in bridging Generative AI with browser-based automation.
+This document outlines the technical architecture of **Riptide**. It defines the core components and their responsibilities in bridging Generative AI with browser-based automation.
 
 ## Core Component Architecture
 
