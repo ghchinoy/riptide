@@ -60,9 +60,8 @@ func main() {
 	// Serve screenshots at root too
 	r.Handle("/screenshots/*", http.StripPrefix("/screenshots/", http.FileServer(screenshotDir)))
 
-	// Serve Lit Frontend
-	frontendDir := http.Dir(filepath.Join(workDir, "frontend/dist"))
-	fileServer(r, "/", frontendDir)
+	// Serve Static Assets
+	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(workDir, "frontend/dist/assets")))))
 
 	// SPA Routing fallback
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
@@ -78,27 +77,6 @@ func main() {
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
-}
-
-// fileServer conveniently sets up a http.FileServer handler to serve
-// static files from a http.FileSystem.
-func fileServer(r chi.Router, path string, root http.FileSystem) {
-	if strings.ContainsAny(path, "{}*") {
-		panic("FileServer does not permit any URL parameters.")
-	}
-
-	if path != "/" && path[len(path)-1] != '/' {
-		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
-		path += "/"
-	}
-	path += "*"
-
-	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
-		rctx := chi.RouteContext(r.Context())
-		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
-		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
-		fs.ServeHTTP(w, r)
-	})
 }
 
 func listSessions(w http.ResponseWriter, r *http.Request) {

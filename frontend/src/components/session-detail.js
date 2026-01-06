@@ -10,10 +10,13 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 let SessionDetail = class SessionDetail extends LitElement {
-    location;
-    session = null;
-    loading = false;
-    apiBase = '/api/v1';
+    constructor() {
+        super(...arguments);
+        this.session = null;
+        this.loading = false;
+        this.error = '';
+        this.apiBase = '/api/v1';
+    }
     async firstUpdated() {
         if (this.location?.params?.id) {
             await this._fetchSession(this.location.params.id);
@@ -28,6 +31,7 @@ let SessionDetail = class SessionDetail extends LitElement {
         console.log('Fetching session:', id);
         this.loading = true;
         this.session = null;
+        this.error = '';
         try {
             const resp = await fetch(`${this.apiBase}/sessions/${id}`);
             if (!resp.ok) {
@@ -38,6 +42,7 @@ let SessionDetail = class SessionDetail extends LitElement {
         }
         catch (err) {
             console.error('Failed to fetch session detail', err);
+            this.error = err.toString();
         }
         finally {
             this.loading = false;
@@ -47,7 +52,16 @@ let SessionDetail = class SessionDetail extends LitElement {
         if (this.loading)
             return html `<div class="loading">Loading session ${this.location?.params?.id}...</div>`;
         if (!this.session)
-            return html `<div class="error">Session not found or failed to load.</div>`;
+            return html `
+      <div class="error">
+        Session not found or failed to load.
+        <div style="color: red; font-weight: bold; margin: 10px 0;">${this.error}</div>
+        <pre style="text-align: left; background: #eee; padding: 10px; margin-top: 10px;">
+Debug Info:
+Location Params: ${JSON.stringify(this.location?.params, null, 2)}
+Session: ${JSON.stringify(this.session, null, 2)}
+        </pre>
+      </div>`;
         return html `
       <div class="session-container">
         <div class="header">
@@ -83,7 +97,7 @@ let SessionDetail = class SessionDetail extends LitElement {
       </div>
     `;
     }
-    static styles = css `
+    static { this.styles = css `
     :host { display: block; padding: 24px; }
     .loading, .error { 
       display: flex; 
@@ -145,7 +159,7 @@ let SessionDetail = class SessionDetail extends LitElement {
       font-size: 0.7rem;
       text-transform: uppercase;
     }
-  `;
+  `; }
 };
 __decorate([
     property({ type: Object }),
@@ -159,6 +173,10 @@ __decorate([
     state(),
     __metadata("design:type", Object)
 ], SessionDetail.prototype, "loading", void 0);
+__decorate([
+    state(),
+    __metadata("design:type", Object)
+], SessionDetail.prototype, "error", void 0);
 SessionDetail = __decorate([
     customElement('session-detail')
 ], SessionDetail);

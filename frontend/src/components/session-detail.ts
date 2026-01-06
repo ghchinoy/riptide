@@ -6,6 +6,7 @@ export class SessionDetail extends LitElement {
   @property({ type: Object }) location?: any;
   @state() session: any = null;
   @state() loading = false;
+  @state() error = '';
 
   private apiBase = '/api/v1';
 
@@ -25,6 +26,7 @@ export class SessionDetail extends LitElement {
     console.log('Fetching session:', id);
     this.loading = true;
     this.session = null;
+    this.error = '';
     try {
       const resp = await fetch(`${this.apiBase}/sessions/${id}`);
       if (!resp.ok) {
@@ -32,8 +34,9 @@ export class SessionDetail extends LitElement {
       }
       this.session = await resp.json();
       console.log('Session loaded:', this.session);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch session detail', err);
+      this.error = err.toString();
     } finally {
       this.loading = false;
     }
@@ -41,7 +44,16 @@ export class SessionDetail extends LitElement {
 
   render() {
     if (this.loading) return html`<div class="loading">Loading session ${this.location?.params?.id}...</div>`;
-    if (!this.session) return html`<div class="error">Session not found or failed to load.</div>`;
+    if (!this.session) return html`
+      <div class="error">
+        Session not found or failed to load.
+        <div style="color: red; font-weight: bold; margin: 10px 0;">${this.error}</div>
+        <pre style="text-align: left; background: #eee; padding: 10px; margin-top: 10px;">
+Debug Info:
+Location Params: ${JSON.stringify(this.location?.params, null, 2)}
+Session: ${JSON.stringify(this.session, null, 2)}
+        </pre>
+      </div>`;
 
     return html`
       <div class="session-container">
