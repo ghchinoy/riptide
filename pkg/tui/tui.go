@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/ghchinoy/website-assistant/pkg/computer"
+	"github.com/ghchinoy/riptide/pkg/computer"
 )
 
 var (

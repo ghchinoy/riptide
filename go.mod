@@ -1,6 +1,6 @@
-module github.com/ghchinoy/website-assistant
+module github.com/ghchinoy/riptide
 
-go 1.25.4
+go 1.25.0
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
