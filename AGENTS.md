@@ -44,15 +44,22 @@ bd sync               # Sync with git
 
 When managing background processes (like the Session Viewer backend):
 
-*   **Port Management:** Before starting a server, check for existing occupants: `lsof -i :<port>`. If a conflict exists (e.g. `media-manager`), pivot to an alternative port immediately.
-*   **Background Persistence:** Use `nohup` and log redirection to ensure the process survives shell detachment and provides a trail for debugging: 
+*   **Port Management:** Before starting a server, check for existing occupants: `lsof -i :<port>`.
+*   **Background Persistence:** Use `nohup` and log redirection to ensure the process survives shell detachment:
     `nohup ./binary > process.log 2>&1 &`
-*   **Verification:** Don't assume a background process is healthy. Verify with:
-    1.  `ps aux | grep binary` (Check if process exists)
-    2.  `lsof -i :<port>` (Check if it's listening)
-    3.  `curl -v http://localhost:<port>/health` (Check reachability)
-    4.  `cat process.log` (Check for immediate panics or errors)
-*   **Lifecycle Management:** Always `pkill <binary> || true` before rebuilding and restarting to avoid zombie processes or "address already in use" errors.
+*   **Verification:** Verify health after a short delay to catch immediate crashes:
+    1.  `ps aux | grep binary`
+    2.  `curl -v http://localhost:<port>/api/v1/sessions` (Check a known endpoint)
+*   **Lifecycle Management:** Always `pkill <binary> || true` before rebuilding to avoid "address already in use" errors.
+*   **Log Integrity:** Ensure log outputs intended for parsing are sanitized (e.g., strip trailing `<nil>` from Go's `%+v` output) to prevent UI or regex parsing errors.
+
+## Meta-Testing & UI Verification
+
+*   **Dogfooding:** Use Riptide itself to verify the Session Viewer UI. An agent should be able to:
+    1.  Navigate to `http://localhost:8083`.
+    2.  Verify the sidebar list is populated.
+    3.  Click a session and confirm logs/images render correctly.
+*   **Path Consistency:** Always verify that API prefixes (e.g., `/api/v1/`) are consistent between the backend router and frontend fetch calls.
 
 - Work is NOT complete until `git push` succeeds
 
