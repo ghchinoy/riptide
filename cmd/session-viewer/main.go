@@ -46,14 +46,18 @@ func main() {
 		AllowedHeaders: []string{"Accept", "Content-Type"},
 	}))
 
+	workDir, _ := os.Getwd()
+	screenshotDir := http.Dir(filepath.Join(workDir, "screenshots"))
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/sessions", listSessions)
 		r.Get("/sessions/{id}", getSession)
+
+		// Serve screenshots under API as well for the frontend
+		r.Handle("/screenshots/*", http.StripPrefix("/api/v1/screenshots/", http.FileServer(screenshotDir)))
 	})
 
-	// Serve screenshots
-	workDir, _ := os.Getwd()
-	screenshotDir := http.Dir(filepath.Join(workDir, "screenshots"))
+	// Serve screenshots at root too
 	r.Handle("/screenshots/*", http.StripPrefix("/screenshots/", http.FileServer(screenshotDir)))
 
 	// Serve Lit Frontend
@@ -70,7 +74,10 @@ func main() {
 	})
 
 	log.Println("Session Viewer backend listening on :8083")
-	http.ListenAndServe(":8083", r)
+	err := http.ListenAndServe(":8083", r)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
 
 // fileServer conveniently sets up a http.FileServer handler to serve
@@ -171,7 +178,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		line := scanner.Text()
 
 		if m := promptRe.FindStringSubmatch(line); len(m) > 1 {
-			session.Prompt = m[1]
+			session.Prompt = strings.TrimSuffix(m[1], " <nil>")
 		}
 
 		if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
@@ -181,6 +188,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 			}
 			currentTurn = &Turn{
 				Index:      idx,
+				Thinking:   []string{},
 				Screenshot: fmt.Sprintf("%s/turn_%d_post.png", id, idx),
 				FullPage:   fmt.Sprintf("%s/turn_%d_full.png", id, idx),
 			}
@@ -188,10 +196,10 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 
 		if currentTurn != nil {
 			if m := thinkingRe.FindStringSubmatch(line); len(m) > 1 {
-				currentTurn.Thinking = append(currentTurn.Thinking, m[1])
+				currentTurn.Thinking = append(currentTurn.Thinking, strings.TrimSuffix(m[1], " <nil>"))
 			}
 			if m := actionRe.FindStringSubmatch(line); len(m) > 1 {
-				currentTurn.Action = m[1]
+				currentTurn.Action = strings.TrimSuffix(m[1], " <nil>")
 			}
 		}
 	}
@@ -199,6 +207,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		turns = append(turns, *currentTurn)
 	}
 	session.Turns = turns
+	log.Printf("Returning session %s with %d turns", session.ID, len(session.Turns))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(session)
@@ -219,7 +228,7 @@ func peekMetadata(path string) (string, string) {
 		line := scanner.Text()
 		if strings.Contains(line, "[log] Prompt:") {
 			if m := regexp.MustCompile(`\[log\] Prompt: (.+)`).FindStringSubmatch(line); len(m) > 1 {
-				prompt = m[1]
+				prompt = strings.TrimSuffix(m[1], " <nil>")
 			}
 		}
 		if strings.Contains(line, "Session Finished.") {

@@ -2,11 +2,13 @@
 main
 testserver
 riptide
+/session-viewer
 
 # Logs
 *.log
 logs/*
 !logs/.keep
+viewer.log
 
 # Artifacts
 screenshots/*
@@ -15,15 +17,6 @@ screenshots/*
 *.png
 !docs/*.png
 
-# Dependencies
-vendor/
-
-# User specific
-.env
-.idea/
-.vscode/
-
-#
-.commit.txt
+# Frontend
+frontend/dist/
 node_modules/
-riptide
