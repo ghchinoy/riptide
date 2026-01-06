@@ -1,4 +1,4 @@
-# Website Assistant Coding Conventions
+# Riptide Coding Conventions
 
 ## Project Structure
 *   **Root:** `main.go` for entry point CLI logic.
@@ -9,7 +9,7 @@
 ## Task Management (`bd`)
 We use the `bd` (Beads) tool for all issue tracking.
 
-*   **Prefix:** `website-assistant` (or `wa` contextually)
+*   **Prefix:** `riptide` (or `rt` contextually)
 *   **Workflow:**
     1.  **Create:** `bd create "Task Name" --description "Details..."
     2.  **Implement:** Code & Test.

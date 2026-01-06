@@ -12,8 +12,8 @@ import (
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/ghchinoy/website-assistant/pkg/computer"
-	"github.com/ghchinoy/website-assistant/pkg/tui"
+	"github.com/ghchinoy/riptide/pkg/computer"
+	"github.com/ghchinoy/riptide/pkg/tui"
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 )
