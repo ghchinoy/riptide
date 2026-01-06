@@ -14,17 +14,27 @@ let SessionDetail = class SessionDetail extends LitElement {
     session = null;
     loading = false;
     apiBase = '/api/v1';
+    async firstUpdated() {
+        if (this.location?.params?.id) {
+            await this._fetchSession(this.location.params.id);
+        }
+    }
     async updated(changedProps) {
-        if (changedProps.has('location')) {
-            const id = this.location.params.id;
-            await this._fetchSession(id);
+        if (changedProps.has('location') && this.location?.params?.id) {
+            await this._fetchSession(this.location.params.id);
         }
     }
     async _fetchSession(id) {
+        console.log('Fetching session:', id);
         this.loading = true;
+        this.session = null;
         try {
             const resp = await fetch(`${this.apiBase}/sessions/${id}`);
+            if (!resp.ok) {
+                throw new Error(`Failed to fetch session: ${resp.status} ${resp.statusText}`);
+            }
             this.session = await resp.json();
+            console.log('Session loaded:', this.session);
         }
         catch (err) {
             console.error('Failed to fetch session detail', err);
@@ -34,8 +44,10 @@ let SessionDetail = class SessionDetail extends LitElement {
         }
     }
     render() {
+        if (this.loading)
+            return html `<div class="loading">Loading session ${this.location?.params?.id}...</div>`;
         if (!this.session)
-            return html `<div>Loading session...</div>`;
+            return html `<div class="error">Session not found or failed to load.</div>`;
         return html `
       <div class="session-container">
         <div class="header">
@@ -72,6 +84,16 @@ let SessionDetail = class SessionDetail extends LitElement {
     `;
     }
     static styles = css `
+    :host { display: block; padding: 24px; }
+    .loading, .error { 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      height: 200px; 
+      color: #49454f;
+      font-style: italic;
+    }
+    .error { color: #b3261e; }
     .session-container {
       max-width: 1200px;
       margin: 0 auto;
