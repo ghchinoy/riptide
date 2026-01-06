@@ -25,3 +25,5 @@ vendor/
 
 #
 .commit.txt
+node_modules/
+riptide
