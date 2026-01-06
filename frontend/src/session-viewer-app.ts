@@ -11,8 +11,8 @@ import '@material/web/progress/linear-progress.js';
 import '@material/web/divider/divider.js';
 
 // Sub-components (to be created)
-import './components/session-list.js';
-import './components/session-detail.js';
+import './components/session-list';
+import './components/session-detail';
 
 @customElement('session-viewer-app')
 export class SessionViewerApp extends LitElement {
@@ -20,16 +20,23 @@ export class SessionViewerApp extends LitElement {
   @state() loading = false;
   @query('#outlet') outlet!: HTMLElement;
 
-  private apiBase = 'http://localhost:8083/api/v1';
+  private apiBase = '/api/v1';
   private router: Router | null = null;
 
   async firstUpdated() {
-    this._setupRouter();
+    console.log('session-viewer-app: firstUpdated');
     await this._fetchSessions();
+    this._setupRouter();
   }
 
   private _setupRouter() {
-    this.router = new Router(this.outlet);
+    const outlet = this.renderRoot.querySelector('#outlet');
+    console.log('Setting up router. Outlet element:', outlet);
+    if (!outlet) {
+      console.error('Router outlet not found in renderRoot');
+      return;
+    }
+    this.router = new Router(outlet);
     this.router.setRoutes([
       { path: '/', component: 'session-list' },
       { path: '/sessions/:id', component: 'session-detail' },
@@ -37,12 +44,18 @@ export class SessionViewerApp extends LitElement {
   }
 
   private async _fetchSessions() {
+    const url = `${this.apiBase}/sessions`;
+    console.log('Fetching sessions from:', url);
     this.loading = true;
     try {
-      const resp = await fetch(`${this.apiBase}/sessions`);
-      this.sessions = await resp.json();
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+      const data = await resp.json();
+      this.sessions = data;
+      console.log('Sessions updated, count:', this.sessions.length);
+      this.requestUpdate();
     } catch (err) {
-      console.error('Failed to fetch sessions', err);
+      console.error('Failed to fetch sessions:', err);
     } finally {
       this.loading = false;
     }
@@ -68,8 +81,11 @@ export class SessionViewerApp extends LitElement {
             <md-list>
               ${this.sessions.map(s => html`
                 <md-list-item @click=${() => Router.go(`/sessions/${s.id}`)}>
-                  <div slot="headline">${s.prompt.substring(0, 40)}...</div>
-                  <div slot="supporting-text">${new Date(s.timestamp).toLocaleString()}</div>
+                  <div slot="headline">${s.prompt?.substring(0, 40)}...</div>
+                  <div slot="supporting-text">
+                    ${new Date(s.timestamp).toLocaleString()}
+                    <span class="status-tag ${s.status}">${s.status}</span>
+                  </div>
                   <md-icon slot="start">history</md-icon>
                 </md-list-item>
                 <md-divider></md-divider>
@@ -127,5 +143,23 @@ export class SessionViewerApp extends LitElement {
       padding: 24px;
     }
     md-list-item { cursor: pointer; }
+    .status-tag {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 8px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .status-tag.active {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #2e7d32;
+    }
+    .status-tag.finished {
+      background: #f5f5f5;
+      color: #757575;
+      border: 1px solid #e0e0e0;
+    }
   `;
 }

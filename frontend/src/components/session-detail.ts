@@ -7,7 +7,7 @@ export class SessionDetail extends LitElement {
   @state() session: any = null;
   @state() loading = false;
 
-  private apiBase = 'http://localhost:8083/api/v1';
+  private apiBase = '/api/v1';
 
   async updated(changedProps: Map<string, any>) {
     if (changedProps.has('location')) {
