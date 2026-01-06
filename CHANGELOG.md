@@ -1,30 +1,60 @@
-# Changelog
+## 2026-01-06
+- Epic: Session Viewer (Lit + Go) (riptide-anw)
 
-## [0.3.0] - 2025-12-21
-### Added
-- **Terminal UI (TUI):** Launched a rich, interactive Terminal UI built with Bubble Tea.
-  - Real-time status updates with spinners.
-  - Live "Thinking" and "Action" stream from the Gemini model.
-  - Integrated viewport for scrolling through agent logs.
-  - Interactive Safety Prompts directly within the TUI (y/n confirmation).
-- **Configuration:** Added `-auto-exit` flag to automatically close the TUI upon completion.
-- **Reliability:** Improved TUI stability by redirecting standard logs to session-specific files in `logs/`.
-- **Graceful Termination:** Improved TUI handling for `Ctrl+C` and session completion.
+## 2025-12-31
+- Improve Interaction Reliability (Click/Drag Debugging) (riptide-z2k)
+- Improve Interaction Reliability (Click/Drag Debugging) (website-assistant-z2k)
+- Fix TUI Thinking Overwrite & Final Response Display (riptide-2a8)
+- Fix TUI Thinking Overwrite & Final Response Display (website-assistant-2a8)
+- Debug Screenshot Hang & Improve Interaction Reliability (riptide-4fi.7)
+- Debug Screenshot Hang & Improve Interaction Reliability (website-assistant-4fi.7)
 
-## [0.2.0] - 2025-12-15
-### Added
-- **Reliability:** Implemented "Euclidean Aim Assist" and "Smart JS Focus" to solve coordinate drift and focus loss.
-- **Capabilities:** Added `drag_and_drop` and `hover_at` support via `chromedp/cdproto/input`.
-- **Safety:** Added interactive `SafetyHandler` for human-in-the-loop confirmation of safety barriers (CAPTCHAs).
-- **Optimization:** Added `-max-screenshots` flag to prune old screenshots from history, enabling long-running sessions.
-- **Observability:** Added structured events (`thinking`, `action`) and GIF generation.
-- **Documentation:** Added `docs/concepts.md`, `docs/lessons_learned.md`, and `docs/test_scenarios.md`.
+## 2025-12-21
+- Refine Input & Logging (riptide-igu)
+- Refine Input & Logging (website-assistant-igu)
+- Interactive TUI with Bubble Tea (riptide-9dy)
+- Interactive TUI with Bubble Tea (website-assistant-9dy)
+- Integrate TUI with Safety Decisions (riptide-9dy.4)
+- Integrate TUI with Safety Decisions (website-assistant-9dy.4)
+- Implement Bubble Tea Model (riptide-9dy.3)
+- Implement Bubble Tea Model (website-assistant-9dy.3)
+- Emit Model Thoughts (riptide-39k)
+- Emit Model Thoughts (website-assistant-39k)
+- Auto-Click Buttons in Aim Assist (riptide-g4a)
+- Auto-Click Buttons in Aim Assist (website-assistant-g4a)
+- Implement Euclidean Aim Assist (riptide-bn2)
+- Implement Euclidean Aim Assist (website-assistant-bn2)
+- Enhance Typing Reliability (riptide-d3e)
+- Enhance Typing Reliability (website-assistant-d3e)
+- Implement JS Focus Fallback (riptide-t3h)
+- Implement JS Focus Fallback (website-assistant-t3h)
+- Promote MaxRecentScreenshots to Flag (riptide-88j)
+- Promote MaxRecentScreenshots to Flag (website-assistant-88j)
+- Fix hardcoded URL (riptide-oqf)
+- Fix hardcoded URL (website-assistant-oqf)
 
-### Changed
-- Refactored `computer.Run` to use the Event Observer pattern.
-- Updated `main.go` to handle `Ctrl+C` gracefully.
+## 2025-12-15
+- Refine TUI Event Stream (riptide-wbf)
+- Refine TUI Event Stream (website-assistant-wbf)
+- Implement Ctrl+C Handler (riptide-h29)
+- Implement Ctrl+C Handler (website-assistant-h29)
+- Refactor Computer Loop for Observability (riptide-9dy.2)
+- Refactor Computer Loop for Observability (website-assistant-9dy.2)
+- Write Architectural Primer (riptide-ron)
+- Write Architectural Primer (website-assistant-ron)
 
-## [0.1.0] - Initial Release
-- Basic Computer Use agent loop.
-- `chromedp` integration.
-- `click`, `type`, `scroll` tools.
+## 2025-12-14
+- Update Documentation (riptide-ab6)
+- Update Documentation (website-assistant-ab6)
+- Session Management (riptide-9z0)
+- Session Management (website-assistant-9z0)
+- Handle safety_decision (website-assistant-72i)
+- Debug 400 Invalid Argument (riptide-lhr)
+- Debug 400 Invalid Argument (website-assistant-lhr)
+- Configure Gemini Client for Computer Use (riptide-26b)
+- Configure Gemini Client for Computer Use (website-assistant-26b)
+- Implement Chromedp Executor (riptide-vuu)
+- Implement Chromedp Executor (website-assistant-vuu)
+- Implement Computer Use Main Loop (riptide-bc2)
+- Implement Computer Use Main Loop (website-assistant-bc2)
+
