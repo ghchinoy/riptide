@@ -285,7 +285,7 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 						log.Printf("Warning: failed to save post-action screenshot: %v", err)
 					}
 
-					// Full-page debug screenshot (website-assistant-mkq.4)
+					// Full-page debug screenshot (riptide-mkq.4)
 					var fullBuf []byte
 					if err := captureFullPageScreenshot(ctx, &fullBuf); err == nil {
 						fullFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_full.png", i+1))
