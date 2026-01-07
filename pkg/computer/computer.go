@@ -16,7 +16,7 @@ import (
 
 const ModelName = "gemini-2.5-computer-use-preview-10-2025"
 
-func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
+func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif, showBrowser bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		// Always log to session log file as well
@@ -42,9 +42,14 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.WindowSize(1280, 1024),
 		chromedp.NoSandbox,
-		chromedp.Headless,
 		chromedp.DisableGPU,
 	)
+	if showBrowser {
+		opts = append(opts, chromedp.Flag("headless", false))
+	} else {
+		opts = append(opts, chromedp.Headless)
+	}
+
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 

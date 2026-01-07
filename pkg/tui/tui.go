@@ -190,27 +190,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		switch msg.Type {
 		case computer.EventStatus:
-			m.status = msg.Message
+			icon := "ℹ️ "
 			if msg.Message == "Session Finished." {
+				icon = "✅ "
 				m.finished = true
 				if m.autoExit {
 					return m, tea.Quit
 				}
 			}
+			m.status = icon + msg.Message
 			if strings.HasPrefix(msg.Message, "Turn") {
 				m.thinking = ""
 				m.action = ""
 			}
 		case computer.EventThinking:
-			m.thinking = msg.Message
-			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(msg.Message)
+			m.thinking = "🧠 " + msg.Message
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("🧠 " + msg.Message)
 			m.logs = append(m.logs, thinkingStyle.Render(wrapped))
 		case computer.EventAction:
-			m.action = msg.Message
-			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(fmt.Sprintf("Action: %s", msg.Message))
+			m.action = "🛠️ " + msg.Message
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(fmt.Sprintf("🛠️ Action: %s", msg.Message))
 			m.logs = append(m.logs, actionStyle.Render(wrapped))
 		case computer.EventLog:
-			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(msg.Message)
+			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("📄 " + msg.Message)
 			m.logs = append(m.logs, infoStyle.Render(wrapped))
 		case computer.EventRaw:
 			if b, err := json.MarshalIndent(msg.Data, "", "  "); err == nil {
@@ -223,9 +225,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.jsonViewport.SetContent(m.lastJSON)
 			}
 		case computer.EventError:
-			m.logs = append(m.logs, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(fmt.Sprintf("Error: %s", msg.Message)))
+			m.logs = append(m.logs, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(fmt.Sprintf("❌ Error: %s", msg.Message)))
 		case computer.EventSafety:
-			m.safetyPrompt = msg.Message
+			m.safetyPrompt = "🚨 " + msg.Message
 		}
 		m.viewport.SetContent(strings.Join(m.logs, "\n"))
 		m.viewport.GotoBottom()

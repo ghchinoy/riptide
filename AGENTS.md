@@ -61,6 +61,12 @@ When managing background processes (like the Session Viewer backend):
     3.  Click a session and confirm logs/images render correctly.
 *   **Path Consistency:** Always verify that API prefixes (e.g., `/api/v1/`) are consistent between the backend router and frontend fetch calls.
 
+### Web Application Debugging
+*   **SPA Routing:** When serving a Single Page App from Go, verify that deep links (e.g., `/sessions/123`) do not return 404s. Ensure the backend has a "NotFound" handler that serves `index.html`.
+*   **Console Hygiene:** When a UI "fails to load," checking the browser console is priority #1. Look for:
+    *   **404s:** Mismatched API paths (`/sessions` vs `/api/v1/sessions`).
+    *   **JS Errors:** "Circular structure to JSON" or "DefineForClassFields" errors (indicative of TS config mismatch).
+
 - Work is NOT complete until `git push` succeeds
 
 - NEVER stop before pushing - that leaves work stranded locally
