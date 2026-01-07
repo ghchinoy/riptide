@@ -26,6 +26,7 @@ func main() {
 	useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
 	autoExit := flag.Bool("auto-exit", false, "Automatically exit the TUI when the session finishes.")
 	mode := flag.String("mode", "default", "The mode of operation (default, audit).")
+	showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
 	flag.Parse()
 
 	// Handle Ctrl+C
@@ -77,7 +78,7 @@ func main() {
 			return response == "y" || response == "Y" || response == "yes"
 		}
 
-		if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
+		if err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, *showBrowser, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
 			if err == context.Canceled {
 				fmt.Println("\nRun cancelled by user.")
 			} else {
@@ -96,7 +97,7 @@ func main() {
 		observer := m.GetObserver(p)
 		safetyHandler := m.GetSafetyHandler(p)
 
-		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
+		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, *showBrowser, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
 		if err != nil {
 			if err != context.Canceled {
 				p.Send(computer.Event{

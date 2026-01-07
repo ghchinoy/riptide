@@ -68,3 +68,15 @@ We use the `bd` (Beads) tool for all issue tracking.
     *   **History (h):** The full request history sent to the model.
 
 *   **Screenshot Reliability:** Initial screenshots can be blank if the renderer hasn't warmed up; add a 1s delay and `WaitReady("body")` checks.
+
+## Frontend Development (Session Viewer)
+The frontend is a **Lit (TypeScript) + Vite** application located in `frontend/`.
+
+*   **Build Command:** `./run_viewer.sh` (Builds frontend -> Starts backend).
+*   **Routing Architecture:**
+    *   **Backend:** `main.go` serves `/api/v1/*` (API) and `/assets/*` (Static).
+    *   **SPA Fallback:** All other routes (e.g., `/sessions/:id`) **must** fall through to `index.html` to allow client-side routing.
+*   **TypeScript Config:**
+    *   **Critical:** `tsconfig.json` must include `"useDefineForClassFields": false`. This is required for Lit decorators (`@state`, `@property`) to function correctly.
+*   **Data Handling:**
+    *   **Serialization:** Avoid `JSON.stringify(this.location)` in debug output, as Router objects often contain circular references. Use `this.location.params`.
