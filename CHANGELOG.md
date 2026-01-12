@@ -1,4 +1,5 @@
 ## 2026-01-11
+- Implement Tool Registry Pattern in Executor (riptide-b19.1)
 - Support .env configuration (riptide-cvd)
 - Unify Build & Test Workflow with Makefile (riptide-b19.2)
 - Frontend Build Cleanup & TS Configuration (riptide-b19.3)
@@ -23,7 +24,6 @@
 ## 2026-01-01
 - Session Viewer: Log & Gallery View (riptide-e5v)
 - Session Viewer: Lit Frontend Scaffold (riptide-nfo)
-- Session Viewer: Backend API & Static Hosting (riptide-5ic)
 - Session Viewer: Research Tasker Architecture (riptide-9xt)
 
 ## 2025-12-31
