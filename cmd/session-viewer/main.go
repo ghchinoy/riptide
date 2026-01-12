@@ -30,6 +30,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/ghchinoy/riptide/pkg/utils"
 )
 
 type Session struct {
@@ -50,6 +51,7 @@ type Turn struct {
 }
 
 func main() {
+	utils.LoadEnv(".env")
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
