@@ -2,119 +2,170 @@ package computer
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/chromedp/chromedp"
 	"google.golang.org/genai"
 )
 
-// Mock/Stub for checking if actions would be executed.
-// Since Execute calls chromedp directly, we can't easily mock chromedp without refactoring.
-// For now, we will test the parameter parsing and dispatch logic by checking for errors
-// or checking the returned "action" string which we return from Execute.
-
-func TestExecute_Click(t *testing.T) {
-	ctx := context.Background()
-
-	// Test standard click
-	call := &genai.FunctionCall{
-		Name: "mouse_click",
-		Args: map[string]interface{}{
-			"x": 500.0,
-			"y": 500.0,
-		},
+func TestExecute_Denormalize(t *testing.T) {
+	tests := []struct {
+		val      interface{}
+		max      int
+		expected float64
+	}{
+		{500.0, 1000, 500.0},
+		{500.0, 2000, 1000.0},
+		{0.0, 1000, 0.0},
+		{1000.0, 1000, 1000.0},
+		{500, 1000, 500.0}, // int test
 	}
 
-	// We expect this to fail with "chromedp: context not initialized" or similar
-	// because we aren't passing a real chromedp context.
-	// However, we can check if it *tried* to click.
-	// Our Execute function returns (interface{}, error).
-	// On success it returns "clicked".
-
-	// Ideally we'd wrap the chromedp calls in an interface, but for a quick test
-	// we just want to verify the switch statements and arg parsing work.
-	// The current implementation calls chromedp.Run immediately.
-
-	// Let's refactor executor.go slightly to make it testable?
-	// Or just accept that we need a real context?
-	// Starting a real headless chrome for unit tests is heavy but possible.
-
-	// Alternative: Verify the parsing logic in separate functions.
-	// The helper functions like getCoords are private.
-	// We should export them or test them via internal test.
-
-	// Let's try testing `getCoords` and others by putting this test in `package computer`.
-
-	// Actually, let's just run it. If it fails on chromedp.Run, we know it passed parsing.
-	_, err := Execute(ctx, call, 1000, 1000)
-	if err == nil {
-		// If it returns nil error, that means chromedp.Run succeeded?
-		// Unlikely with empty context.
-		t.Log("Execution succeeded (unexpectedly?)")
-	} else {
-		t.Logf("Execution failed as expected (no browser): %v", err)
-		// Verify it wasn't a parsing error.
-		if err.Error() == "no coordinates found" {
-			t.Error("Parsing failed: no coordinates found")
+	for _, tt := range tests {
+		got := denormalize(tt.val, tt.max)
+		if got != tt.expected {
+			t.Errorf("denormalize(%v, %v) = %v; want %v", tt.val, tt.max, got, tt.expected)
 		}
 	}
 }
 
-func TestExecute_Denormalize(t *testing.T) {
-	// We can test denormalize if we export it or test internally.
-	// Since this file is `package computer`, we can access private `denormalize`.
+func TestExecute_GetCoords(t *testing.T) {
+	width, height := 1000, 1000
 
-	val := denormalize(500.0, 1920)
-	expected := 960.0
-	if val != expected {
-		t.Errorf("Expected %f, got %f", expected, val)
-	}
+	t.Run("coordinate_array", func(t *testing.T) {
+		args := map[string]interface{}{"coordinate": []interface{}{500.0, 500.0}}
+		x, y, err := getCoords(args, width, height)
+		if err != nil || x != 500 || y != 500 {
+			t.Errorf("getCoords failed: %v, %v, %v", x, y, err)
+		}
+	})
 
-	val = denormalize(0.0, 1920)
-	if val != 0.0 {
-		t.Errorf("Expected 0, got %f", val)
-	}
-
-	val = denormalize(1000.0, 1920)
-	if val != 1920.0 {
-		t.Errorf("Expected 1920, got %f", val)
-	}
+	t.Run("x_y_fields", func(t *testing.T) {
+		args := map[string]interface{}{"x": 250.0, "y": 750.0}
+		x, y, err := getCoords(args, width, height)
+		if err != nil || x != 250 || y != 750 {
+			t.Errorf("getCoords failed: %v, %v, %v", x, y, err)
+		}
+	})
 }
 
-func TestExecute_Type(t *testing.T) {
-	ctx := context.Background()
-	call := &genai.FunctionCall{
-		Name: "type_text_at",
-		Args: map[string]interface{}{
-			"text": "Hello",
-			"x":    500.0,
-			"y":    500.0,
-		},
+// TestExecutor_Integration runs the executor against a real headless browser
+func TestExecutor_Integration(t *testing.T) {
+	var mu sync.Mutex
+	clicks := make(map[string]int)
+	lastType := ""
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.URL.Path {
+		case "/":
+			fmt.Fprint(w, `
+				<html><body>
+					<button id="btn" style="position:absolute;top:0;left:0;width:100px;height:50px" onclick="fetch('/click?id=btn')">Click Me</button>
+					<input id="input" style="position:absolute;top:100px;left:0" onchange="fetch('/type?val='+this.value)">
+				</body></html>`)
+		case "/click":
+			clicks[r.URL.Query().Get("id")]++
+		case "/type":
+			lastType = r.URL.Query().Get("val")
+		}
+	}))
+	defer ts.Close()
+
+	// Browser Setup
+	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.WindowSize(1280, 1024))
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer allocCancel()
+
+	runTest := func(t *testing.T, name string, testFn func(context.Context)) {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := chromedp.NewContext(allocCtx)
+			defer cancel()
+			
+			// Initial navigation for every test to be sure
+			if err := chromedp.Run(ctx, chromedp.Navigate(ts.URL), chromedp.WaitReady("body")); err != nil {
+				t.Fatalf("Failed to navigate: %v", err)
+			}
+			testFn(ctx)
+		})
 	}
-	// Should attempt click then type
-	_, err := Execute(ctx, call, 1000, 1000)
-	if err == nil {
-		t.Log("Execution succeeded (unexpectedly?)")
-	} else if err.Error() != "invalid context" {
-		t.Errorf("Unexpected error: %v", err)
-	}
+
+	runTest(t, "Click", func(ctx context.Context) {
+		// btn is at 0,0 to 100,50. Center is 50, 25.
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (25.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "mouse_click",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("Click failed: %v", err)
+		}
+		
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["btn"] == 0 {
+			t.Errorf("Click was not registered")
+		}
+	})
+
+	runTest(t, "Type", func(ctx context.Context) {
+		// input is at 0, 100.
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (110.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "type",
+			Args: map[string]interface{}{
+				"x":    nx,
+				"y":    ny,
+				"text": "Riptide",
+			},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("Type failed: %v", err)
+		}
+
+		// Ensure blur for change event
+		chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+		time.Sleep(200 * time.Millisecond)
+
+		mu.Lock()
+		defer mu.Unlock()
+		if lastType != "Riptide" {
+			t.Errorf("Type failed, got: %q", lastType)
+		}
+	})
 }
 
-func TestExecute_Scroll(t *testing.T) {
-	ctx := context.Background()
+func TestStatusReporting(t *testing.T) {
+	// Verify that Execute correctly returns the current URL
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "OK")
+	}))
+	defer ts.Close()
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
 	call := &genai.FunctionCall{
-		Name: "scroll_at",
-		Args: map[string]interface{}{
-			"x":         500.0,
-			"y":         500.0,
-			"direction": "down",
-		},
+		Name: "navigate",
+		Args: map[string]interface{}{"url": ts.URL},
 	}
-	_, err := Execute(ctx, call, 1000, 1000)
-	if err == nil {
-		t.Log("Execution succeeded")
-	} else if err.Error() != "invalid context" {
-		// Scroll might be unimplemented or just return "scrolled" without chromedp call?
-		// Checking implementation: handleScroll returns "scrolled", nil. It does NOT call chromedp yet.
-		// So this should succeed.
+	res, err := Execute(ctx, call, 1280, 1024)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if res["url"] != ts.URL+"/" {
+		t.Errorf("Expected URL %s, got %s", ts.URL+"/", res["url"])
 	}
 }
