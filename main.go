@@ -28,11 +28,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ghchinoy/riptide/pkg/computer"
 	"github.com/ghchinoy/riptide/pkg/tui"
+	"github.com/ghchinoy/riptide/pkg/utils"
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 )
 
 func main() {
+	// Load environment variables from .env
+	utils.LoadEnv(".env")
+
 	prompt := flag.String("prompt", "Go to https://www.google.com and tell me what the doodle is today.", "The prompt for the computer user.")
 	makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
 	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")

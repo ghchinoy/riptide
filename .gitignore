@@ -25,3 +25,6 @@ node_modules/
 .genkit/
 
 .gemini/
+.env
+riptide
+session-viewer
