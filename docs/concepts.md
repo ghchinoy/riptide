@@ -36,9 +36,14 @@ The Orchestration layer manages the lifecycle of a session.
 *   **Safety Interception:** Intercepts `safety_decision` markers from the model, enabling automated acknowledgement or human-in-the-loop verification for sensitive actions.
 
 ### 3. Augmented Skills (Application Layer)
-While the agent can navigate visually, certain tasks are better handled programmatically.
-*   **Hybrid Automation:** Developers can inject "Skills" that use `chromedp.Evaluate` to perform complex extractions or interactions that are visually ambiguous but programmatically trivial.
-*   **Tactile Feedback:** Future iterations will return programmatic values (e.g., current slider position or input text) back to the model in the function response, providing immediate verification of action success.
+While the agent can navigate visually, certain tasks are better handled programmatically. Riptide classifies its tools into four categories to optimize both model performance and developer observability:
+
+*   **Standard (Native):** Core interactions defined by the Gemini Computer Use spec (e.g., clicks, typing).
+*   **Skills (Augmented):** Riptide-specific capabilities that provide high-reliability data (e.g., `get_page_layout` for DOM scanning).
+*   **Patches (Robustness):** Handlers that intercept common model hallucinations or legacy tool names to ensure loop continuity.
+*   **Utility:** Framework-level helpers (e.g., `wait`, `navigate`) that manage the browser lifecycle.
+
+**Tactile Feedback:** Future iterations will return programmatic values back to the model, providing immediate verification of action success.
 
 ### 4. Context, Identity, & State Management
 This layer defines the environment in which the agent operates.
