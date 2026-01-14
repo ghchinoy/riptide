@@ -37,17 +37,23 @@ func main() {
 	// Load environment variables from .env
 	utils.LoadEnv(".env")
 
-	prompt := flag.String("prompt", "Go to https://www.google.com and tell me what the doodle is today.", "The prompt for the computer user.")
-	makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
-	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
-	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
-	useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
-	autoExit := flag.Bool("auto-exit", false, "Automatically exit the TUI when the session finishes.")
-	mode := flag.String("mode", "default", "The mode of operation (default, audit).")
-	showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
-	flag.Parse()
-
-	// Handle Ctrl+C
+	        prompt := flag.String("prompt", "", "The prompt for the computer user. (Mandatory)")
+	        makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
+	        maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
+	        maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
+	                useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
+	                quitOnExit := flag.Bool("quit-on-exit", false, "Automatically exit the TUI when the session finishes.")
+	                mode := flag.String("mode", "default", "The mode of operation (default, audit).")
+	        
+	        showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
+	        flag.Parse()
+	
+	        if *prompt == "" {
+	                fmt.Println("Error: The -prompt flag is mandatory.")
+	                flag.Usage()
+	                os.Exit(1)
+	        }
+		// Handle Ctrl+C
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -106,31 +112,30 @@ func main() {
 		return
 	}
 
-	// TUI Mode
-	m := tui.NewModel(sessionID, *autoExit)
-	p := tea.NewProgram(m, tea.WithAltScreen())
-
-	// Run agent in goroutine
-	go func() {
-		observer := m.GetObserver(p)
-		safetyHandler := m.GetSafetyHandler(p)
-
-		err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, *showBrowser, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
-		if err != nil {
-			if err != context.Canceled {
-				p.Send(computer.Event{
-					Type:    computer.EventError,
-					Message: fmt.Sprintf("Fatal: %v", err),
-				})
-			}
-		}
-
-		if *autoExit {
-			time.Sleep(2 * time.Second)
-		}
-	}()
-
-	if _, err := p.Run(); err != nil {
+	        // TUI Mode
+	        m := tui.NewModel(sessionID, *quitOnExit)
+	        p := tea.NewProgram(m, tea.WithAltScreen())
+	
+	        // Run agent in goroutine
+	        go func() {
+	                observer := m.GetObserver(p)
+	                safetyHandler := m.GetSafetyHandler(p)
+	
+	                err := computer.Run(ctx, client, sessionID, *prompt, *makeGif, *showBrowser, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
+	                if err != nil {
+	                        if err != context.Canceled {
+	                                p.Send(computer.Event{
+	                                        Type:    computer.EventError,
+	                                        Message: fmt.Sprintf("Fatal: %v", err),
+	                                })
+	                        }
+	                }
+	
+	                if *quitOnExit {
+	                        time.Sleep(2 * time.Second)
+	                }
+	        }()
+		if _, err := p.Run(); err != nil {
 		log.Fatalf("TUI Error: %v", err)
 	}
 }
