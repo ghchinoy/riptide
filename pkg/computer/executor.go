@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
-	"time"
-
-	"github.com/chromedp/cdproto/input"
-	"github.com/chromedp/chromedp"
-	"google.golang.org/genai"
+	                "sync"
+	                "time"
+	        
+	                "github.com/chromedp/cdproto/input"
+	                "github.com/chromedp/chromedp"
+	        	"google.golang.org/genai"
 )
 
 // ToolHandler defines the function signature for a computer tool.
@@ -56,10 +56,19 @@ func init() {
 	RegisterTool("get_computed_style", handleGetComputedStyle)
 	RegisterTool("inspect_element", handleGetComputedStyle)
 
-	RegisterTool("get_page_layout", handleGetPageLayout)
-	RegisterTool("scan_page", handleGetPageLayout)
+	        RegisterTool("get_page_layout", handleGetPageLayout)
 
-	RegisterTool("navigate", handleNavigateWrapper)
+	        RegisterTool("scan_page", handleGetPageLayout)
+
+	
+
+	        RegisterTool("get_accessibility_tree", handleGetAccessibilityTree)
+
+	
+
+	        RegisterTool("navigate", handleNavigateWrapper)
+
+	
 	RegisterTool("search", handleSearch)
 
 	RegisterTool("open_web_browser", func(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
