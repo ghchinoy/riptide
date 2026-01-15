@@ -124,6 +124,7 @@ Riptide implements the standard Gemini Computer Use toolset, augmented with adva
 | `-sessions-dir` | `sessions` | Directory to store session logs and screenshots. |
 | `-high-contrast`| `false` | Use a high-contrast theme for the TUI (improves accessibility). |
 | `-user-agent` | (Chrome/macOS) | Custom User Agent string to use for the browser session. |
+| `-transparent-ua`| `true` | Append Riptide identification to the User Agent (polite mode). |
 
 ## Testing Scenarios
 We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.
