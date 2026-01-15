@@ -51,9 +51,8 @@ type Turn struct {
 }
 
 func main() {
-	utils.LoadEnv(".env")
-	r := chi.NewRouter()
-
+        utils.LoadConfig()
+        r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
