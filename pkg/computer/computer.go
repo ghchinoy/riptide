@@ -16,7 +16,7 @@ import (
 
 const ModelName = "gemini-2.5-computer-use-preview-10-2025"
 
-func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, makeGif, showBrowser bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
+func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		// Always log to session log file as well
@@ -32,7 +32,8 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	}
 
 	// 0. Setup Output
-	outputDir := filepath.Join("screenshots", sessionID)
+	sessionPath := filepath.Join(sessionsDir, sessionID)
+	outputDir := filepath.Join(sessionPath, "screenshots")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output dir: %w", err)
 	}
@@ -179,7 +180,7 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 	defer func() {
 		if makeGif {
 			emit(EventStatus, "Generating GIF...", nil)
-			gifPath := filepath.Join(outputDir, "session.gif")
+			gifPath := filepath.Join(sessionPath, "session.gif")
 			cmd := exec.Command("ffmpeg",
 				"-framerate", "1",
 				"-i", filepath.Join(outputDir, "turn_%d_post.png"),

@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"regexp"
-	"strings"
-
+        "encoding/json"
+        "fmt"
+        "os"
+        "path/filepath"
+        "regexp"
+        "strings"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -62,13 +62,14 @@ type Model struct {
 
 	ready bool
 
-	autoExit bool
-
-	sessionID string
-
-	// JSON View
-
-	lastJSON string
+	        autoExit bool
+	
+	        sessionsDir string
+	
+	        sessionID string
+	
+	        // JSON View
+		lastJSON string
 
 	showJSON bool
 
@@ -85,20 +86,20 @@ type Model struct {
 	safetyChannel chan bool
 }
 
-func NewModel(sessionID string, autoExit bool) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+func NewModel(sessionsDir, sessionID string, autoExit bool) Model {
+        s := spinner.New()
+        s.Spinner = spinner.Dot
+        s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return Model{
-		spinner:       s,
-		status:        "Initializing...",
-		safetyChannel: make(chan bool),
-		autoExit:      autoExit,
-		sessionID:     sessionID,
-	}
+        return Model{
+                spinner:       s,
+                status:        "Initializing...",
+                safetyChannel: make(chan bool),
+                autoExit:      autoExit,
+                sessionsDir:   sessionsDir,
+                sessionID:     sessionID,
+        }
 }
-
 func (m Model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
@@ -148,7 +149,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "l":
 			m.showLogs = true
-			if logData, err := os.ReadFile(fmt.Sprintf("logs/session_%s.log", m.sessionID)); err == nil {
+			                        if logData, err := os.ReadFile(filepath.Join(m.sessionsDir, m.sessionID, "session.log")); err == nil {
 				m.logViewport.SetContent(string(logData))
 				m.logViewport.GotoBottom()
 			}
@@ -324,7 +325,7 @@ func (m Model) View() string {
 		logFooter := infoStyle.Render("\n  l/esc: back | arrows: scroll")
 
 		// Load log file
-		if logData, err := os.ReadFile(fmt.Sprintf("logs/session_%s.log", m.sessionID)); err == nil {
+		                        if logData, err := os.ReadFile(filepath.Join(m.sessionsDir, m.sessionID, "session.log")); err == nil {
 			wrapped := lipgloss.NewStyle().Width(m.width - 6).Render(string(logData))
 			m.logViewport.SetContent(wrapped)
 		}
