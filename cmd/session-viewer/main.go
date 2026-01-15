@@ -62,21 +62,20 @@ func main() {
 		AllowedHeaders: []string{"Accept", "Content-Type"},
 	}))
 
-	workDir, _ := os.Getwd()
-	screenshotDir := http.Dir(filepath.Join(workDir, "screenshots"))
-
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/sessions", listSessions)
-		r.Get("/sessions/{id}", getSession)
-
-		// Serve screenshots under API as well for the frontend
-		r.Handle("/screenshots/*", http.StripPrefix("/api/v1/screenshots/", http.FileServer(screenshotDir)))
-	})
-
-	// Serve screenshots at root too
-	r.Handle("/screenshots/*", http.StripPrefix("/screenshots/", http.FileServer(screenshotDir)))
-
-	// Serve Static Assets
+	        workDir, _ := os.Getwd()
+	        sessionsBaseDir := filepath.Join(workDir, "sessions")
+	
+	        r.Route("/api/v1", func(r chi.Router) {
+	                r.Get("/sessions", listSessions)
+	                r.Get("/sessions/{id}", getSession)
+	
+	                // Serve sessions content (logs, screenshots) under API
+	                r.Handle("/sessions/*", http.StripPrefix("/api/v1/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
+	        })
+	
+	        // Serve sessions at root too for direct asset access if needed by frontend
+	        r.Handle("/sessions/*", http.StripPrefix("/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
+		// Serve Static Assets
 	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(workDir, "frontend/dist/assets")))))
 
 	// SPA Routing fallback
@@ -96,40 +95,44 @@ func main() {
 }
 
 func listSessions(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir("logs")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+        entries, err := os.ReadDir("sessions")
+        if err != nil {
+                if os.IsNotExist(err) {
+                        w.Header().Set("Content-Type", "application/json")
+                        w.Write([]byte("[]"))
+                        return
+                }
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }
 
-	var sessions []Session
-	re := regexp.MustCompile(`session_(.+)\.log`)
+        var sessions []Session
 
-	for _, f := range files {
-		if f.IsDir() || !strings.HasSuffix(f.Name(), ".log") {
-			continue
-		}
+        for _, entry := range entries {
+                if !entry.IsDir() {
+                        continue
+                }
 
-		matches := re.FindStringSubmatch(f.Name())
-		if len(matches) < 2 {
-			continue
-		}
-		id := matches[1]
+                id := entry.Name()
+                logPath := filepath.Join("sessions", id, "session.log")
 
-		info, _ := f.Info()
-		
-		// Peek at the log to get the prompt
-		prompt, status := peekMetadata(filepath.Join("logs", f.Name()))
+                if _, err := os.Stat(logPath); os.IsNotExist(err) {
+                        continue
+                }
 
-		sessions = append(sessions, Session{
-			ID:        id,
-			Timestamp: info.ModTime(),
-			Prompt:    prompt,
-			LogPath:   f.Name(),
-			Status:    status,
-		})
-	}
+                info, _ := entry.Info()
 
+                // Peek at the log to get the prompt
+                prompt, status := peekMetadata(logPath)
+
+                sessions = append(sessions, Session{
+                        ID:        id,
+                        Timestamp: info.ModTime(),
+                        Prompt:    prompt,
+                        LogPath:   "session.log",
+                        Status:    status,
+                })
+        }
 	// Sort by newest first
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].Timestamp.After(sessions[j].Timestamp)
@@ -140,54 +143,53 @@ func listSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func getSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	logPath := filepath.Join("logs", fmt.Sprintf("session_%s.log", id))
+        id := chi.URLParam(r, "id")
+        logPath := filepath.Join("sessions", id, "session.log")
 
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		http.Error(w, "Session not found", http.StatusNotFound)
-		return
-	}
+        if _, err := os.Stat(logPath); os.IsNotExist(err) {
+                http.Error(w, "Session not found", http.StatusNotFound)
+                return
+        }
 
-	session := Session{
-		ID: id,
-	}
+        session := Session{
+                ID: id,
+        }
 
-	file, err := os.Open(logPath)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
+        file, err := os.Open(logPath)
+        if err != nil {
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }
+        defer file.Close()
 
-	var turns []Turn
-	var currentTurn *Turn
-	
-	scanner := bufio.NewScanner(file)
-	turnRe := regexp.MustCompile(`\[status\] Turn (\d+)/`)
-	promptRe := regexp.MustCompile(`\[log\] Prompt: (.+)`)
-	thinkingRe := regexp.MustCompile(`\[thinking\] (.+)`)
-	actionRe := regexp.MustCompile(`\[action\] Tool Call: (.+)`)
+        var turns []Turn
+        var currentTurn *Turn
 
-	for scanner.Scan() {
-		line := scanner.Text()
+        scanner := bufio.NewScanner(file)
+        turnRe := regexp.MustCompile(`\[status\] Turn (\d+)/`)
+        promptRe := regexp.MustCompile(`\[log\] Prompt: (.+)`)
+        thinkingRe := regexp.MustCompile(`\[thinking\] (.+)`)
+        actionRe := regexp.MustCompile(`\[action\] Tool Call: (.+)`)
 
-		if m := promptRe.FindStringSubmatch(line); len(m) > 1 {
-			session.Prompt = strings.TrimSuffix(m[1], " <nil>")
-		}
+        for scanner.Scan() {
+                line := scanner.Text()
 
-		if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
-			idx, _ := strconv_atoi(m[1])
-			if currentTurn != nil {
-				turns = append(turns, *currentTurn)
-			}
-			currentTurn = &Turn{
-				Index:      idx,
-				Thinking:   []string{},
-				Screenshot: fmt.Sprintf("%s/turn_%d_post.png", id, idx),
-				FullPage:   fmt.Sprintf("%s/turn_%d_full.png", id, idx),
-			}
-		}
+                if m := promptRe.FindStringSubmatch(line); len(m) > 1 {
+                        session.Prompt = strings.TrimSuffix(m[1], " <nil>")
+                }
 
+                if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
+                        idx, _ := strconv_atoi(m[1])
+                        if currentTurn != nil {
+                                turns = append(turns, *currentTurn)
+                        }
+                        currentTurn = &Turn{
+                                Index:      idx,
+                                Thinking:   []string{},
+                                Screenshot: fmt.Sprintf("screenshots/turn_%d_post.png", idx),
+                                FullPage:   fmt.Sprintf("screenshots/turn_%d_full.png", idx),
+                        }
+                }
 		if currentTurn != nil {
 			if m := thinkingRe.FindStringSubmatch(line); len(m) > 1 {
 				currentTurn.Thinking = append(currentTurn.Thinking, strings.TrimSuffix(m[1], " <nil>"))

@@ -59,7 +59,7 @@ Use the `-gif` flag to generate a replay of the agent's session. This is crucial
 ```bash
 go run main.go -prompt "..." -gif
 ```
-*Output:* `screenshots/<session-uuid>/session.gif`
+*Output:* `sessions/<session-uuid>/session.gif`
 
 ### 4. Web-Based Session Viewer (New!)
 Browse your session history, review agent reasoning, and view high-resolution turn-by-turn screenshot galleries in a beautiful web interface.
@@ -115,6 +115,7 @@ Riptide implements the standard Gemini Computer Use toolset, augmented with adva
 | `-gif` | `false` | Generate a `session.gif` replay of the run. |
 | `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
 | `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
+| `-sessions-dir` | `sessions` | Directory to store session logs and screenshots. |
 
 ## Testing Scenarios
 We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.
@@ -129,10 +130,12 @@ This repository is structured to be extended.
 *   **`main.go`**: The "Interface". Wrap this logic into a CLI, HTTP API, or gRPC service for your specific use case.
 
 ## Artifacts & Outputs
-All run data is organized by **Session UUID** in `screenshots/`:
-*   `initial.png`: The starting state.
-*   `turn_N_post.png`: Snapshots taken immediately after every action.
-*   `session.gif`: A full video replay of the task.
+All run data is organized by **Session UUID** in the configured sessions directory (default `sessions/`):
+*   `sessions/<uuid>/session.log`: The full interaction log.
+*   `sessions/<uuid>/session.gif`: A full video replay of the task (if enabled).
+*   `sessions/<uuid>/screenshots/`:
+    *   `turn_N_post.png`: Snapshots taken immediately after every action.
+    *   `turn_N_full.png`: Full-page snapshots for debugging.
 
 ## Architecture
 

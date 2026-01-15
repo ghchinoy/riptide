@@ -91,11 +91,11 @@ Session: ${JSON.stringify(this.session, null, 2)}
                 </div>
                 <div class="visuals">
                   <div class="screenshot-container">
-                    <img src="${this.apiBase}/screenshots/${t.screenshot}" alt="Post-action screenshot">
+                    <img src="${this.apiBase}/sessions/${this.session.id}/${t.screenshot}" alt="Post-action screenshot">
                     <div class="label">Viewport</div>
                   </div>
                   <div class="screenshot-container">
-                    <img src="${this.apiBase}/screenshots/${t.full_page}" alt="Full page screenshot" @error=${(e: any) => e.target.style.display='none'}>
+                    <img src="${this.apiBase}/sessions/${this.session.id}/${t.full_page}" alt="Full page screenshot" @error=${(e: any) => e.target.style.display='none'}>
                     <div class="label">Full Page</div>
                   </div>
                 </div>

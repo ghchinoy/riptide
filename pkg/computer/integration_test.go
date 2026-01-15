@@ -40,17 +40,19 @@ func TestScenario_Lights(t *testing.T) {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	        // 3. Run Agent
+	                // 3. Run Agent
 
-	        sessionID := "test-integration-lights"
+	                sessionID := "test-integration-lights"
 
-	        prompt := "Go to http://localhost:8081/, wait for tiles to appear, and set Great Room Lights and Main Bedroom Hallway lights to 15%. You will need to scroll."
+	                prompt := "Go to http://localhost:8081/, wait for tiles to appear, and set Great Room Lights and Main Bedroom Hallway lights to 15%. You will need to scroll."
 
-	
+	        
 
-	        err = Run(ctx, client, sessionID, prompt, false, false, nil, nil, 10, 3, "default")
+	                err = Run(ctx, client, "sessions", sessionID, prompt, false, false, nil, nil, 10, 3, "default")
 
-	        if err != nil {
+	                if err != nil {
+
+	        
 
 	                t.Errorf("Scenario failed: %v", err)
 
