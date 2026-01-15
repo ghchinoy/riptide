@@ -51,9 +51,11 @@ func main() {
 	        quitOnExit := flag.Bool("quit-on-exit", false, "Automatically exit the TUI when the session finishes.")
 	        mode := flag.String("mode", "default", "The mode of operation (default, audit).")
 	                showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
-	                sessionsDir := flag.String("sessions-dir", "sessions", "Directory to store session logs and screenshots.")
-	                highContrast := flag.Bool("high-contrast", false, "Use high-contrast theme for the TUI.")
-	                flag.Parse()
+	                        sessionsDir := flag.String("sessions-dir", "sessions", "Directory to store session logs and screenshots.")
+	                        highContrast := flag.Bool("high-contrast", false, "Use high-contrast theme for the TUI.")
+	                        userAgent := flag.String("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36", "The User Agent string to use.")
+	                        flag.Parse()
+	                
 	        	        if *prompt == "" {
 	                fmt.Println("Error: The -prompt flag is mandatory.")
 	                flag.Usage()
@@ -109,7 +111,7 @@ func main() {
 	                        return response == "y" || response == "Y" || response == "yes"
 	                }
 	
-	                if err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
+	                if err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, *userAgent, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
 	                        if err == context.Canceled {
 	                                fmt.Println("\nRun cancelled by user.")
 	                        } else {
@@ -127,7 +129,7 @@ func main() {
 	                observer := m.GetObserver(p)
 	                safetyHandler := m.GetSafetyHandler(p)
 	
-	                err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
+	                err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, *userAgent, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
 	                if err != nil {
 	                        if err != context.Canceled {
 	                                p.Send(computer.Event{
