@@ -40,7 +40,7 @@ export GOOGLE_CLOUD_LOCATION="us-central1" # Ensure model availability in this r
 ## Quick Start
 
 ### 1. General Assistant (Now with TUI)
-Run the agent with a natural language prompt. By default, it now launches a rich **Terminal UI** for real-time monitoring.
+Run the agent with a natural language prompt. By default, it launches a rich **Terminal UI** for real-time monitoring. The `-prompt` flag is **mandatory**.
 
 ```bash
 go run main.go -prompt "Go to https://google.com and search for 'Gemini Computer Use Go SDK'"
@@ -92,9 +92,9 @@ go run main.go -prompt "Go to http://localhost:8080, enter 'Agent Smith' as the 
 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
-| `-prompt` | (Default Google Doodle query) | The instruction for the agent. |
+| `-prompt` | (none) | **Mandatory**. The instruction for the agent. |
 | `-tui` | `true` | Use the interactive Terminal UI. |
-| `-auto-exit` | `false` | Automatically exit the TUI when the session finishes. |
+| `-quit-on-exit` | `false` | Automatically exit the TUI when the session finishes. |
 | `-gif` | `false` | Generate a `session.gif` replay of the run. |
 | `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
 | `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
