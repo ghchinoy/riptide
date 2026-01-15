@@ -189,16 +189,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventMsg:
 		switch msg.Type {
-		case computer.EventStatus:
-			icon := "ℹ️ "
-			if msg.Message == "Session Finished." {
-				icon = "✅ "
-				m.finished = true
-				if m.autoExit {
-					return m, tea.Quit
-				}
-			}
-			m.status = icon + msg.Message
+		                case computer.EventStatus:
+		                        icon := "ℹ️ "
+		                        if msg.Message == "Goal Achieved." || msg.Message == "Session Finished." {
+		                                icon = "✅ "
+		                                m.finished = true
+		                                if m.autoExit {
+		                                        return m, tea.Quit
+		                                }
+		                        } else if msg.Message == "Max Turns Reached." {
+		                                icon = "🛑 "
+		                                m.finished = true
+		                                if m.autoExit {
+		                                        return m, tea.Quit
+		                                }
+		                        }
+		                        m.status = icon + msg.Message
+		
 			if strings.HasPrefix(msg.Message, "Turn") {
 				m.thinking = ""
 				m.action = ""
