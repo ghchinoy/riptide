@@ -17,7 +17,7 @@ import (
 
 const ModelName = "gemini-2.5-computer-use-preview-10-2025"
 
-func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, userAgent string, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
+func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, userAgent string, useAXT bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		// Always log to session log file as well
@@ -179,15 +179,29 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	                },
 	        })
 	
-	        // Capture initial AXTree
-	        axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
-	        if err == nil {
-	                if b, err := json.Marshal(axTree); err == nil {
-	                        history[0].Parts = append(history[0].Parts, &genai.Part{
-	                                Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
-	                        })
+	                // Capture initial AXTree
+	
+	                if useAXT {
+	
+	                        axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
+	
+	                        if err == nil {
+	
+	                                if b, err := json.Marshal(axTree); err == nil {
+	
+	                                        history[0].Parts = append(history[0].Parts, &genai.Part{
+	
+	                                                Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+	
+	                                        })
+	
+	                                }
+	
+	                        }
+	
 	                }
-	        }
+	
+	        
 		defer func() {
 		if makeGif {
 			emit(EventStatus, "Generating GIF...", nil)
@@ -350,20 +364,39 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				                                					},
 				                                				})
 				                                
-				                                				// Capture AXTree for this turn
-				                                				axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
-				                                				if err == nil {
-				                                					if b, err := json.Marshal(axTree); err == nil {
-				                                						history = append(history, &genai.Content{
-				                                							Role: "user",
-				                                							Parts: []*genai.Part{
-				                                								{
-				                                									Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
-				                                								},
-				                                							},
-				                                						})
-				                                					}
-				                                				}
+				                                				                                // Capture AXTree for this turn
+				                                
+				                                				                                if useAXT {
+				                                
+				                                				                                        axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
+				                                
+				                                				                                        if err == nil {
+				                                
+				                                				                                                if b, err := json.Marshal(axTree); err == nil {
+				                                
+				                                				                                                        history = append(history, &genai.Content{
+				                                
+				                                				                                                                Role: "user",
+				                                
+				                                				                                                                Parts: []*genai.Part{
+				                                
+				                                				                                                                        {
+				                                
+				                                				                                                                                Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+				                                
+				                                				                                                                        },
+				                                
+				                                				                                                                },
+				                                
+				                                				                                                        })
+				                                
+				                                				                                                }
+				                                
+				                                				                                        }
+				                                
+				                                				                                }
+				                                
+				                                				
 				                                			}
 				                                		}
 				                                		// Prune old screenshots to save context window
