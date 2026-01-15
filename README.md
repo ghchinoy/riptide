@@ -31,10 +31,16 @@ The framework implements a continuous **Observe-Reason-Act** loop:
 *   **Chrome/Chromium** installed (for `chromedp`).
 *   **FFmpeg** (optional, for generating session GIFs).
 
-### Environment Variables
+### Configuration & Environment
+Riptide looks for configuration (environment variables) in the following order:
+1.  **Actual Environment Variables** already set in your shell.
+2.  **Local `.env` file** in the current working directory.
+3.  **XDG Config:** `$XDG_CONFIG_HOME/riptide/.env` or `~/.config/riptide/.env`.
+
+**Required Variables:**
 ```bash
-export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="us-central1" # Ensure model availability in this region
+GOOGLE_CLOUD_PROJECT="your-project-id"
+GOOGLE_CLOUD_LOCATION="us-central1"
 ```
 
 ## Quick Start

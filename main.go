@@ -34,10 +34,16 @@ import (
 )
 
 func main() {
-	// Load environment variables from .env
-	utils.LoadEnv(".env")
 
-	prompt := flag.String("prompt", "", "The prompt for the computer user. (Mandatory)")
+        // Load environment variables from .env or XDG config
+
+        utils.LoadConfig()
+
+
+
+        prompt := flag.String("prompt", "", "The prompt for the computer user. (Mandatory)")
+
+
 	makeGif := flag.Bool("gif", false, "Generate a GIF of the session.")
 	maxTurns := flag.Int("max-turns", 10, "Maximum number of interaction turns.")
 	maxScreenshots := flag.Int("max-screenshots", 3, "Maximum number of recent screenshots to keep in history context.")
