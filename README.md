@@ -126,6 +126,8 @@ Riptide implements the standard Gemini Computer Use toolset, augmented with adva
 | `-user-agent` | (Chrome/macOS) | Custom User Agent string to use for the browser session. |
 | `-transparent-ua`| `true` | Append Riptide identification to the User Agent (polite mode). |
 
+> **Note:** For more details on how these flags interact and why transparency matters, see the [Identity & Transparency](docs/concepts.md#5-identity--transparency-the-user-agent) section in the Architectural Concepts guide.
+
 ## Testing Scenarios
 We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.
 See [Test Scenarios](docs/test_scenarios.md) for details.

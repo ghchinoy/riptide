@@ -50,6 +50,16 @@ This layer defines the environment in which the agent operates.
 *   **Session Persistence:** By mounting a persistent user data directory, the agent retains authentication state across runs.
 *   **Identity Injection:** Support for injecting auth tokens or cookies directly into the browser context, allowing the agent to bypass login flows and start directly on the target task.
 
+### 5. Identity & Transparency (The User Agent)
+
+Riptide manages the browser's identity through the **User-Agent** string. This is the primary signal websites use to distinguish between human users and automated scripts.
+
+*   **Polite Identification (Transparent Mode):** By default, Riptide appends an identifier to the User-Agent: `(Riptide; +https://github.com/ghchinoy/riptide)`. This follows the "Polite Crawler" convention, allowing site owners to identify the source of traffic and contact developers if needed.
+*   **Realistic Defaults:** The base User-Agent is a modern, human-like Chrome on macOS string. This ensures high compatibility with sites that might block older or generic "headless" browser strings.
+*   **Customization vs. Camouflage:**
+    *   **Custom UA:** Developers can specify a completely custom string (e.g., to mimic a mobile device or a specific enterprise browser).
+    *   **Anonymization:** By disabling `transparent-ua`, the Riptide identifier is removed, leaving only the realistic base string. This is useful for testing sites with overly restrictive or brittle bot detection.
+
 ## Observability & Debugging
 
 The framework provides multiple layers of observability:
