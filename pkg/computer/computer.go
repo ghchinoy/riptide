@@ -2,6 +2,7 @@ package computer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -171,14 +172,23 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	}
 	domCancel()
 
-	history[0].Parts = append(history[0].Parts, &genai.Part{
-		InlineData: &genai.Blob{
-			MIMEType: "image/png",
-			Data:     buf,
-		},
-	})
-
-	defer func() {
+	        history[0].Parts = append(history[0].Parts, &genai.Part{
+	                InlineData: &genai.Blob{
+	                        MIMEType: "image/png",
+	                        Data:     buf,
+	                },
+	        })
+	
+	        // Capture initial AXTree
+	        axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
+	        if err == nil {
+	                if b, err := json.Marshal(axTree); err == nil {
+	                        history[0].Parts = append(history[0].Parts, &genai.Part{
+	                                Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+	                        })
+	                }
+	        }
+		defer func() {
 		if makeGif {
 			emit(EventStatus, "Generating GIF...", nil)
 			gifPath := filepath.Join(sessionPath, "session.gif")
@@ -311,37 +321,52 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				}
 				evalCancel()
 
-				toolResp := &genai.Part{
-					FunctionResponse: &genai.FunctionResponse{
-						Name:     part.FunctionCall.Name,
-						Response: resultMap,
-						Parts: []*genai.FunctionResponsePart{
-							{
-								InlineData: &genai.FunctionResponseBlob{
-									MIMEType: "image/png",
-									Data:     newBuf,
-								},
-							},
-						},
-					},
-				}
-				if err != nil {
-					if toolResp.FunctionResponse.Response == nil {
-						toolResp.FunctionResponse.Response = make(map[string]interface{})
-					}
-					toolResp.FunctionResponse.Response["error"] = err.Error()
-				}
-
-				history = append(history, &genai.Content{
-					Role: "user",
-					Parts: []*genai.Part{
-						toolResp,
-					},
-				})
-			}
-		}
-
-		// Prune old screenshots to save context window
+				                                				toolResp := &genai.Part{
+				                                					FunctionResponse: &genai.FunctionResponse{
+				                                						Name:     part.FunctionCall.Name,
+				                                						Response: resultMap,
+				                                						Parts: []*genai.FunctionResponsePart{
+				                                							{
+				                                								InlineData: &genai.FunctionResponseBlob{
+				                                									MIMEType: "image/png",
+				                                									Data:     newBuf,
+				                                								},
+				                                							},
+				                                						},
+				                                					},
+				                                				}
+				                                
+				                                				if err != nil {
+				                                					if toolResp.FunctionResponse.Response == nil {
+				                                						toolResp.FunctionResponse.Response = make(map[string]interface{})
+				                                					}
+				                                					toolResp.FunctionResponse.Response["error"] = err.Error()
+				                                				}
+				                                
+				                                				history = append(history, &genai.Content{
+				                                					Role: "user",
+				                                					Parts: []*genai.Part{
+				                                						toolResp,
+				                                					},
+				                                				})
+				                                
+				                                				// Capture AXTree for this turn
+				                                				axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
+				                                				if err == nil {
+				                                					if b, err := json.Marshal(axTree); err == nil {
+				                                						history = append(history, &genai.Content{
+				                                							Role: "user",
+				                                							Parts: []*genai.Part{
+				                                								{
+				                                									Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+				                                								},
+				                                							},
+				                                						})
+				                                					}
+				                                				}
+				                                			}
+				                                		}
+				                                		// Prune old screenshots to save context window
 		screenshotsFound := 0
 		// Iterate backwards
 		for j := len(history) - 1; j >= 0; j-- {
