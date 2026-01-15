@@ -50,11 +50,11 @@ func main() {
 	        useTUI := flag.Bool("tui", true, "Use the Bubble Tea TUI.")
 	        quitOnExit := flag.Bool("quit-on-exit", false, "Automatically exit the TUI when the session finishes.")
 	        mode := flag.String("mode", "default", "The mode of operation (default, audit).")
-	        showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
-	        sessionsDir := flag.String("sessions-dir", "sessions", "Directory to store session logs and screenshots.")
-	        flag.Parse()
-	
-	        if *prompt == "" {
+	                showBrowser := flag.Bool("show-browser", false, "Show the browser window (disable headless mode).")
+	                sessionsDir := flag.String("sessions-dir", "sessions", "Directory to store session logs and screenshots.")
+	                highContrast := flag.Bool("high-contrast", false, "Use high-contrast theme for the TUI.")
+	                flag.Parse()
+	        	        if *prompt == "" {
 	                fmt.Println("Error: The -prompt flag is mandatory.")
 	                flag.Usage()
 	                os.Exit(1)
@@ -119,11 +119,10 @@ func main() {
 	                return
 	        }
 	
-	        // TUI Mode
-	        m := tui.NewModel(*sessionsDir, sessionID, *quitOnExit)
-	        p := tea.NewProgram(m, tea.WithAltScreen())
-	
-	        // Run agent in goroutine
+	                // TUI Mode
+	                m := tui.NewModel(*sessionsDir, sessionID, *quitOnExit, *highContrast)
+	                p := tea.NewProgram(m, tea.WithAltScreen())
+	        	        // Run agent in goroutine
 	        go func() {
 	                observer := m.GetObserver(p)
 	                safetyHandler := m.GetSafetyHandler(p)

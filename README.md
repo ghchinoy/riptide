@@ -122,6 +122,7 @@ Riptide implements the standard Gemini Computer Use toolset, augmented with adva
 | `-max-turns` | `10` | Hard limit on the number of turns to prevent runaway costs. |
 | `-max-screenshots` | `3` | Number of recent screenshots to keep in history context. Lower values save tokens. |
 | `-sessions-dir` | `sessions` | Directory to store session logs and screenshots. |
+| `-high-contrast`| `false` | Use a high-contrast theme for the TUI (improves accessibility). |
 
 ## Testing Scenarios
 We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.
