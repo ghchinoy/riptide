@@ -386,16 +386,18 @@ func Run(ctx context.Context, client *genai.Client, sessionID, prompt string, ma
 			}
 		}
 
-		if !hasToolCalls {
-			break
+		                if !hasToolCalls {
+		                        emit(EventStatus, "Goal Achieved.", nil)
+		                        break
+		                }
+		                if i == maxTurns-1 {
+		                        emit(EventStatus, "Max Turns Reached.", nil)
+		                }
+		        }
+		
+		        return nil
 		}
-	}
-
-	emit(EventStatus, "Session Finished.", nil)
-	return nil
-}
-
-func captureFullPageScreenshot(ctx context.Context, res *[]byte) error {
+		func captureFullPageScreenshot(ctx context.Context, res *[]byte) error {
 	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		_, _, contentSize, _, _, _, err := page.GetLayoutMetrics().Do(ctx)
 		if err != nil {
