@@ -73,11 +73,10 @@ func main() {
 	        projectId := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	        location := os.Getenv("GOOGLE_CLOUD_LOCATION")
 	
-	        if projectId == "" || location == "" {
-	                log.Fatal("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set")
-	        }
-	
-	        client, err := genai.NewClient(ctx, &genai.ClientConfig{
+	                if projectId == "" || location == "" {
+	                        log.Fatal("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set (via shell environment or in a .env file)")
+	                }
+	        	        client, err := genai.NewClient(ctx, &genai.ClientConfig{
 	                Project:  projectId,
 	                Location: location,
 	                Backend:  genai.BackendVertexAI,
