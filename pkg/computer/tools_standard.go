@@ -113,7 +113,7 @@ func handleMouseClick(ctx context.Context, args map[string]interface{}, width, h
 	if err := chromedp.Run(ctx, chromedp.MouseClickXY(x, y)); err != nil {
 		return nil, err
 	}
-	chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
+	_ = chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 	var foundTag string
 	err = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`
 			(function(x, y) {
@@ -171,7 +171,7 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 		if _, err := handleMouseClick(ctx, args, width, height); err != nil {
 			return nil, err
 		}
-		chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
+		_ = chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 	}
 	var activeTag string
 	if err := chromedp.Run(ctx, chromedp.Evaluate("document.activeElement.tagName", &activeTag)); err == nil {
@@ -311,7 +311,7 @@ func handleDragAndDrop(ctx context.Context, args map[string]interface{}, width, 
 			return nil
 		}),
 	)
-	chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
+	_ = chromedp.Run(ctx, chromedp.Sleep(100*time.Millisecond))
 	return "dragged", err
 }
 

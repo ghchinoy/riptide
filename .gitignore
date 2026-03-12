@@ -1,7 +1,7 @@
 # Binaries
-main
-testserver
-riptide
+/main
+/testserver
+/riptide
 /session-viewer
 
 # Logs
@@ -26,5 +26,9 @@ node_modules/
 
 .gemini/
 .env
-riptide
-session-viewer
+/riptide
+/session-viewer
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

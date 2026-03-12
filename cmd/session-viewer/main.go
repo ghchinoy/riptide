@@ -98,7 +98,7 @@ func listSessions(w http.ResponseWriter, r *http.Request) {
         if err != nil {
                 if os.IsNotExist(err) {
                         w.Header().Set("Content-Type", "application/json")
-                        w.Write([]byte("[]"))
+                        _, _ = w.Write([]byte("[]"))
                         return
                 }
                 http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -138,9 +138,8 @@ func listSessions(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
-}
-
+	_ = json.NewEncoder(w).Encode(sessions)
+	}
 func getSession(w http.ResponseWriter, r *http.Request) {
         id := chi.URLParam(r, "id")
         logPath := filepath.Join("sessions", id, "session.log")
@@ -159,7 +158,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
                 http.Error(w, err.Error(), http.StatusInternalServerError)
                 return
         }
-        defer file.Close()
+        defer func() { _ = file.Close() }()
 
         var turns []Turn
         var currentTurn *Turn
@@ -205,15 +204,14 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Returning session %s with %d turns", session.ID, len(session.Turns))
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(session)
-}
-
-func peekMetadata(path string) (string, string) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", "unknown"
+	_ = json.NewEncoder(w).Encode(session)
 	}
-	defer file.Close()
+func peekMetadata(path string) (string, string) {
+        file, err := os.Open(path)
+        if err != nil {
+                return "", "unknown"
+        }
+        defer func() { _ = file.Close() }()
 
 	prompt := ""
 	status := "active"
