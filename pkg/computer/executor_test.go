@@ -65,7 +65,7 @@ func TestExecutor_Integration(t *testing.T) {
 		defer mu.Unlock()
 		switch r.URL.Path {
 		case "/":
-			fmt.Fprint(w, `
+			_, _ = fmt.Fprint(w, `
 				<html><body>
 					<button id="btn" style="position:absolute;top:0;left:0;width:100px;height:50px" onclick="fetch('/click?id=btn')">Click Me</button>
 					<input id="input" style="position:absolute;top:100px;left:0" onchange="fetch('/type?val='+this.value)">
@@ -135,7 +135,7 @@ func TestExecutor_Integration(t *testing.T) {
 		}
 
 		// Ensure blur for change event
-		chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+		_ = chromedp.Run(ctx, chromedp.KeyEvent("\r"))
 		time.Sleep(200 * time.Millisecond)
 
 		mu.Lock()
@@ -149,7 +149,7 @@ func TestExecutor_Integration(t *testing.T) {
 func TestStatusReporting(t *testing.T) {
 	// Verify that Execute correctly returns the current URL
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "OK")
+		_, _ = fmt.Fprint(w, "OK")
 	}))
 	defer ts.Close()
 

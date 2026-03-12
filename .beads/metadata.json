@@ -1,5 +1,7 @@
 {
-  "database": "beads.db",
-  "jsonl_export": "issues.jsonl",
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_database": "beads_riptide",
+  "project_id": "2887d68e-22ae-476c-97e1-b5e622287758",
   "last_bd_version": "0.28.0"
 }

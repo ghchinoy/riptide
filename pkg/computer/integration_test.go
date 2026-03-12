@@ -23,11 +23,11 @@ func TestScenario_Lights(t *testing.T) {
 	mux := http.NewServeMux()
 	// Reuse the HTML from testserver/main.go or similar
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `<html><body><h1>Dashboard</h1><div id="loading">Loading...</div><div id="tiles" style="display:none;"><div id="great-room">Great Room Lights <input type="range" value="0" oninput="this.nextSibling.innerText=this.value"><span>0</span></div><div style="height:1000px"></div><div id="main-hallway">Main Bedroom Hallway lights <input type="range" value="0" oninput="this.nextSibling.innerText=this.value"><span>0</span></div></div><script>setTimeout(() => { document.getElementById('loading').style.display='none'; document.getElementById('tiles').style.display='block'; }, 2000);</script></body></html>`)
+		_, _ = fmt.Fprint(w, `<html><body><h1>Dashboard</h1><div id="loading">Loading...</div><div id="tiles" style="display:none;"><div id="great-room">Great Room Lights <input type="range" value="0" oninput="this.nextSibling.innerText=this.value"><span>0</span></div><div style="height:1000px"></div><div id="main-hallway">Main Bedroom Hallway lights <input type="range" value="0" oninput="this.nextSibling.innerText=this.value"><span>0</span></div></div><script>setTimeout(() => { document.getElementById('loading').style.display='none'; document.getElementById('tiles').style.display='block'; }, 2000);</script></body></html>`)
 	})
 	srv := &http.Server{Addr: ":8081", Handler: mux}
-	go srv.ListenAndServe()
-	defer srv.Shutdown(context.Background())
+	go func() { _ = srv.ListenAndServe() }()
+	defer func() { _ = srv.Shutdown(context.Background()) }()
 
 	// 2. Setup Client
 	ctx := context.Background()

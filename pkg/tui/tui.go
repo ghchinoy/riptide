@@ -90,151 +90,156 @@ func (m Model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if m.showJSON || m.showHistory {
-			switch msg.String() {
-			case "j", "h", "esc":
-				m.showJSON = false
-				m.showHistory = false
-				return m, nil
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			}
-			var cmd tea.Cmd
-			m.jsonViewport, cmd = m.jsonViewport.Update(msg)
-			return m, cmd
-		}
-
-		if m.showLogs {
-			switch msg.String() {
-			case "l", "esc":
-				m.showLogs = false
-				return m, nil
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			}
-			var cmd tea.Cmd
-			m.logViewport, cmd = m.logViewport.Update(msg)
-			return m, cmd
-		}
-
+func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.showJSON || m.showHistory {
 		switch msg.String() {
+		case "j", "h", "esc":
+			m.showJSON = false
+			m.showHistory = false
+			return m, nil
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "j":
-			m.showJSON = true
+		}
+		var cmd tea.Cmd
+		m.jsonViewport, cmd = m.jsonViewport.Update(msg)
+		return m, cmd
+	}
+
+	if m.showLogs {
+		switch msg.String() {
+		case "l", "esc":
+			m.showLogs = false
+			return m, nil
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+		var cmd tea.Cmd
+		m.logViewport, cmd = m.logViewport.Update(msg)
+		return m, cmd
+	}
+
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "j":
+		m.showJSON = true
+		m.jsonViewport.SetContent(m.lastJSON)
+		return m, nil
+	case "h":
+		m.showHistory = true
+		// content for jsonViewport will be set by the latest EventRaw labeled "history"
+		return m, nil
+	case "l":
+		m.showLogs = true
+		if logData, err := os.ReadFile(filepath.Join(m.sessionsDir, m.sessionID, "session.log")); err == nil {
+			m.logViewport.SetContent(string(logData))
+			m.logViewport.GotoBottom()
+		}
+		return m, nil
+	case "y", "n":
+		if m.safetyPrompt != "" {
+			m.safetyChannel <- (msg.String() == "y")
+			m.safetyPrompt = ""
+			m.status = "Safety decision sent."
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleWindowSizeMsg(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	headerHeight := 8
+	footerHeight := 4
+	m.width = msg.Width
+	m.height = msg.Height
+
+	if !m.ready {
+		m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
+		m.jsonViewport = viewport.New(msg.Width-4, msg.Height-8)
+		m.logViewport = viewport.New(msg.Width-4, msg.Height-8)
+		m.ready = true
+	} else {
+		m.viewport.Width = msg.Width
+		m.viewport.Height = msg.Height - headerHeight - footerHeight
+		m.jsonViewport.Width = msg.Width - 4
+		m.jsonViewport.Height = msg.Height - 8
+		m.logViewport.Width = msg.Width - 4
+		m.logViewport.Height = msg.Height - 8
+	}
+	return m, nil
+}
+
+func (m Model) handleEventMsg(msg eventMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case computer.EventStatus:
+		icon := "ℹ️ "
+		switch msg.Message {
+		case "Goal Achieved.", "Session Finished.":
+			icon = "✅ "
+			m.finished = true
+			if m.autoExit {
+				return m, tea.Quit
+			}
+		case "Max Turns Reached.":
+			icon = "🛑 "
+			m.finished = true
+			if m.autoExit {
+				return m, tea.Quit
+			}
+		}
+		m.status = icon + msg.Message
+
+		if strings.HasPrefix(msg.Message, "Turn") {
+			m.thinking = ""
+			m.action = ""
+		}
+	case computer.EventThinking:
+		m.thinking = "🧠 " + msg.Message
+		wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("🧠 " + msg.Message)
+		m.logs = append(m.logs, m.styles.Thinking.Render(wrapped))
+	case computer.EventAction:
+		m.action = "🛠️ " + msg.Message
+		wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(fmt.Sprintf("🛠️ Action: %s", msg.Message))
+		m.logs = append(m.logs, m.styles.Action.Render(wrapped))
+	case computer.EventLog:
+		wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("📄 " + msg.Message)
+		m.logs = append(m.logs, m.styles.Info.Render(wrapped))
+
+	case computer.EventRaw:
+		if b, err := json.MarshalIndent(msg.Data, "", "  "); err == nil {
+			s := string(b)
+			// Truncate base64 strings (usually data:image/png;base64,...)
+			re := regexp.MustCompile(`"data":\s*"[^"]{100,}"`)
+			s = re.ReplaceAllString(s, `"data": "<base64 truncated>"`)
+
+			m.lastJSON = s
 			m.jsonViewport.SetContent(m.lastJSON)
-			return m, nil
-		case "h":
-			m.showHistory = true
-			// content for jsonViewport will be set by the latest EventRaw labeled "history"
-			return m, nil
-		case "l":
-			m.showLogs = true
-			                        if logData, err := os.ReadFile(filepath.Join(m.sessionsDir, m.sessionID, "session.log")); err == nil {
-				m.logViewport.SetContent(string(logData))
-				m.logViewport.GotoBottom()
-			}
-			return m, nil
-		case "y", "n":
-			if m.safetyPrompt != "" {
-				m.safetyChannel <- (msg.String() == "y")
-				m.safetyPrompt = ""
-				m.status = "Safety decision sent."
-			}
 		}
+	case computer.EventError:
+		m.logs = append(m.logs, m.styles.Error.Render(fmt.Sprintf("❌ Error: %s", msg.Message)))
+	case computer.EventSafety:
+		m.safetyPrompt = "🚨 " + msg.Message
+	}
+	m.viewport.SetContent(strings.Join(m.logs, "\n"))
+	m.viewport.GotoBottom()
+	return m, nil
+}
 
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
 	case tea.WindowSizeMsg:
-		headerHeight := 8
-		footerHeight := 4
-		m.width = msg.Width
-		m.height = msg.Height
-
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
-			m.viewport.HighPerformanceRendering = false
-
-			m.jsonViewport = viewport.New(msg.Width-4, msg.Height-8)
-			m.jsonViewport.HighPerformanceRendering = false
-
-			m.logViewport = viewport.New(msg.Width-4, msg.Height-8)
-			m.logViewport.HighPerformanceRendering = false
-
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - headerHeight - footerHeight
-			m.jsonViewport.Width = msg.Width - 4
-			m.jsonViewport.Height = msg.Height - 8
-			m.logViewport.Width = msg.Width - 4
-			m.logViewport.Height = msg.Height - 8
-		}
-
+		return m.handleWindowSizeMsg(msg)
 	case eventMsg:
-		switch msg.Type {
-		                case computer.EventStatus:
-		                        icon := "ℹ️ "
-		                        if msg.Message == "Goal Achieved." || msg.Message == "Session Finished." {
-		                                icon = "✅ "
-		                                m.finished = true
-		                                if m.autoExit {
-		                                        return m, tea.Quit
-		                                }
-		                        } else if msg.Message == "Max Turns Reached." {
-		                                icon = "🛑 "
-		                                m.finished = true
-		                                if m.autoExit {
-		                                        return m, tea.Quit
-		                                }
-		                        }
-		                        m.status = icon + msg.Message
-		
-			if strings.HasPrefix(msg.Message, "Turn") {
-				m.thinking = ""
-				m.action = ""
-			}
-		case computer.EventThinking:
-			m.thinking = "🧠 " + msg.Message
-			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("🧠 " + msg.Message)
-			m.logs = append(m.logs, m.styles.Thinking.Render(wrapped))
-		case computer.EventAction:
-			m.action = "🛠️ " + msg.Message
-			wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render(fmt.Sprintf("🛠️ Action: %s", msg.Message))
-			m.logs = append(m.logs, m.styles.Action.Render(wrapped))
-		                case computer.EventLog:
-		                        wrapped := lipgloss.NewStyle().Width(m.viewport.Width - 2).Render("📄 " + msg.Message)
-		                        m.logs = append(m.logs, m.styles.Info.Render(wrapped))
-		
-		case computer.EventRaw:
-			if b, err := json.MarshalIndent(msg.Data, "", "  "); err == nil {
-				s := string(b)
-				// Truncate base64 strings (usually data:image/png;base64,...)
-				re := regexp.MustCompile(`"data":\s*"[^"]{100,}"`)
-				s = re.ReplaceAllString(s, `"data": "<base64 truncated>"`)
+		return m.handleEventMsg(msg)
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
 
-				m.lastJSON = s
-				m.jsonViewport.SetContent(m.lastJSON)
-			}
-		                case computer.EventError:
-		                        m.logs = append(m.logs, m.styles.Error.Render(fmt.Sprintf("❌ Error: %s", msg.Message)))
-		                case computer.EventSafety:
-		                        m.safetyPrompt = "🚨 " + msg.Message
-		                }
-		                m.viewport.SetContent(strings.Join(m.logs, "\n"))
-		                m.viewport.GotoBottom()
-		
-		        case spinner.TickMsg:
-		                var cmd tea.Cmd
-		                m.spinner, cmd = m.spinner.Update(msg)
-		                return m, cmd
-		        }
-		
-		        return m, tea.Batch(cmds...)
-		}
+	return m, nil
+}
 		
 		func (m Model) View() string {
 		        if !m.ready {

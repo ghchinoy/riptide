@@ -111,7 +111,7 @@ func main() {
         if err != nil {
                 log.Fatalf("Failed to open session log: %v", err)
         }
-        defer logFile.Close()
+        defer func() { _ = logFile.Close() }()
 
         if *useTUI {
                 log.SetOutput(logFile)
@@ -122,54 +122,61 @@ func main() {
         }
 
         if !*useTUI {
-                fmt.Printf("Starting Session: %s\n", sessionID)
-                // Interactive Safety Handler
-                safetyHandler := func(explanation string) bool {
-                        fmt.Printf("\n[SAFETY ALERT] The model flagged a safety concern:\n%s\n", explanation)
-                        fmt.Print("Do you want to proceed? (y/N): ")
-                        var response string
-                        _, err := fmt.Scanln(&response)
-                        if err != nil {
-                                return false // Assume no on error/EOF
-                        }
-                        return response == "y" || response == "Y" || response == "yes"
-                }
+		runHeadlessMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode)
+		return
+	}
 
-                if err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, nil, safetyHandler, *maxTurns, *maxScreenshots, *mode); err != nil {
-                        if err == context.Canceled {
-                                fmt.Println("\nRun cancelled by user.")
-                        } else {
-                                log.Fatalf("Computer Use failed: %v", err)
-                        }
-                }
-                return
-        }
+	runTUIMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode, *quitOnExit, *highContrast)
+}
 
-        // TUI Mode
-        m := tui.NewModel(*sessionsDir, sessionID, *quitOnExit, *highContrast)
-        p := tea.NewProgram(m, tea.WithAltScreen())
+func runHeadlessMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string) {
+	fmt.Printf("Starting Session: %s\n", sessionID)
+	// Interactive Safety Handler
+	safetyHandler := func(explanation string) bool {
+			fmt.Printf("\n[SAFETY ALERT] The model flagged a safety concern:\n%s\n", explanation)
+			fmt.Print("Do you want to proceed? (y/N): ")
+			var response string
+			_, err := fmt.Scanln(&response)
+			if err != nil {
+					return false // Assume no on error/EOF
+			}
+			return response == "y" || response == "Y" || response == "yes"
+	}
 
-        // Run agent in goroutine
-        go func() {
-                observer := m.GetObserver(p)
-                safetyHandler := m.GetSafetyHandler(p)
+	if err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, makeGif, showBrowser, finalUA, useAXT, nil, safetyHandler, maxTurns, maxScreenshots, mode); err != nil {
+			if err == context.Canceled {
+					fmt.Println("\nRun cancelled by user.")
+			} else {
+					log.Fatalf("Computer Use failed: %v", err)
+			}
+	}
+}
 
-                err := computer.Run(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, observer, safetyHandler, *maxTurns, *maxScreenshots, *mode)
-	                if err != nil {
-	                        if err != context.Canceled {
-	                                p.Send(computer.Event{
-	                                        Type:    computer.EventError,
-	                                        Message: fmt.Sprintf("Fatal: %v", err),
-	                                })
-	                        }
-	                }
-	
-	                if *quitOnExit {
-	                        time.Sleep(2 * time.Second)
-	                }
-	        }()
-	
+func runTUIMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string, quitOnExit, highContrast bool) {
+	m := tui.NewModel(sessionsDir, sessionID, quitOnExit, highContrast)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Run agent in goroutine
+	go func() {
+			observer := m.GetObserver(p)
+			safetyHandler := m.GetSafetyHandler(p)
+
+			err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, makeGif, showBrowser, finalUA, useAXT, observer, safetyHandler, maxTurns, maxScreenshots, mode)
+			if err != nil {
+					if err != context.Canceled {
+							p.Send(computer.Event{
+									Type:    computer.EventError,
+									Message: fmt.Sprintf("Fatal: %v", err),
+							})
+					}
+			}
+
+			if quitOnExit {
+					time.Sleep(2 * time.Second)
+			}
+	}()
+
 	if _, err := p.Run(); err != nil {
-		log.Fatalf("TUI Error: %v", err)
+			log.Fatalf("TUI Error: %v", err)
 	}
 }

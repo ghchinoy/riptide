@@ -101,7 +101,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 
 	if err := chromedp.Run(pfCtx, chromedp.Navigate("about:blank")); err != nil {
 		pfCancel()
-		return fmt.Errorf("ENVIRONMENT NOT READY: failed to launch browser or navigate to blank page: %w. Please ensure Chrome/Chromium is installed and accessible.", err)
+		return fmt.Errorf("ENVIRONMENT NOT READY: failed to launch browser or navigate to blank page: %w. Please ensure Chrome/Chromium is installed and accessible", err)
 	}
 	var finalURL string
 	if err := chromedp.Run(pfCtx, chromedp.Location(&finalURL)); err == nil {
@@ -129,38 +129,9 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	emit(EventStatus, "Starting Computer Use Session", nil)
 	emit(EventLog, fmt.Sprintf("Prompt: %s", prompt), nil)
 
-	log.Println("Taking initial screenshot...")
-
-	var buf []byte
-	// Wait for browser to be really ready
-	initialCtx, initialCancel := context.WithTimeout(ctx, 10*time.Second)
-	err := chromedp.Run(initialCtx,
-		chromedp.WaitReady("body"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Println("Internal: Browser ready, capturing initial screenshot...")
-			return nil
-		}),
-		chromedp.CaptureScreenshot(&buf),
-	)
-	initialCancel()
-
+	buf, err := captureInitialScreenshot(ctx, outputDir, emit)
 	if err != nil {
-		emit(EventLog, fmt.Sprintf("Initial screenshot failed: %v. Retrying with simpler capture...", err), nil)
-		// Fallback: simpler capture without WaitReady
-		screenshotCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		err = chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&buf))
-		cancel()
-	}
-
-	if err != nil {
-		emit(EventError, "Failed to capture initial screenshot", err)
-		return fmt.Errorf("failed to capture initial screenshot: %w", err)
-	}
-	log.Printf("Initial screenshot captured: %d bytes", len(buf))
-
-	filename := filepath.Join(outputDir, "initial.png")
-	if err := os.WriteFile(filename, buf, 0644); err != nil {
-		emit(EventLog, fmt.Sprintf("Warning: failed to save screenshot: %v", err), nil)
+		return err
 	}
 
 	// Debug: Check if DOM is empty
@@ -266,6 +237,9 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				emit(EventAction, fmt.Sprintf("Tool Call: %s", part.FunctionCall.Name), part.FunctionCall.Args)
 
 				resultMap, err := Execute(ctx, part.FunctionCall, 1280, 1024)
+				if err != nil {
+					log.Printf("Execute error: %v", err)
+				}
 
 				// Handle Safety Interaction if present
 				if safety, ok := part.FunctionCall.Args["safety_decision"].(map[string]interface{}); ok {
@@ -285,41 +259,8 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				}
 
 				// Capture NEW screenshot for the next state
-				var newBuf []byte
-				screenshotStart := time.Now()
-
-				log.Printf("Taking post-action screenshot for turn %d...", i+1)
-				// Try a few times or check readyState
-				screenshotCtx, screenshotCancel := context.WithTimeout(ctx, 15*time.Second)
-				err = chromedp.Run(screenshotCtx,
-					chromedp.WaitReady("body"),
-					chromedp.CaptureScreenshot(&newBuf),
-				)
-				screenshotCancel()
-
+				newBuf, err := capturePostActionScreenshot(ctx, i, outputDir, emit)
 				if err != nil {
-					emit(EventLog, fmt.Sprintf("Screenshot failed after %v: %v. Retrying with simpler capture...", time.Since(screenshotStart), err), nil)
-					// Simple capture fallback
-					fallbackCtx, fallbackCancel := context.WithTimeout(ctx, 5*time.Second)
-					err = chromedp.Run(fallbackCtx, chromedp.CaptureScreenshot(&newBuf))
-					fallbackCancel()
-				}
-
-				if err == nil {
-					log.Printf("Post-action screenshot captured: %d bytes", len(newBuf))
-					// Save to disk for debugging
-					postFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_post.png", i+1))
-					if err := os.WriteFile(postFilename, newBuf, 0644); err != nil {
-						log.Printf("Warning: failed to save post-action screenshot: %v", err)
-					}
-
-					// Full-page debug screenshot (riptide-mkq.4)
-					var fullBuf []byte
-					if err := captureFullPageScreenshot(ctx, &fullBuf); err == nil {
-						fullFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_full.png", i+1))
-						os.WriteFile(fullFilename, fullBuf, 0644)
-					}
-				} else {
 					emit(EventError, "Failed to capture post-action screenshot", err)
 				}
 
@@ -398,51 +339,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 			}
 		}
 		// Prune old screenshots to save context window
-		screenshotsFound := 0
-		// Iterate backwards
-		for j := len(history) - 1; j >= 0; j-- {
-			content := history[j]
-			if content.Role != "user" {
-				continue
-			}
-
-			hasScreenshot := false
-			// Check direct InlineData (initial prompt)
-			for _, part := range content.Parts {
-				if part.InlineData != nil {
-					hasScreenshot = true
-					break
-				}
-				// Check FunctionResponse InlineData
-				if part.FunctionResponse != nil {
-					for _, frPart := range part.FunctionResponse.Parts {
-						if frPart.InlineData != nil {
-							hasScreenshot = true
-							break
-						}
-					}
-				}
-			}
-
-			if hasScreenshot {
-				screenshotsFound++
-				if screenshotsFound > maxScreenshots {
-					// Prune!
-					for _, part := range content.Parts {
-						if part.InlineData != nil {
-							part.InlineData = nil // Remove blob
-						}
-						if part.FunctionResponse != nil {
-							for _, frPart := range part.FunctionResponse.Parts {
-								if frPart.InlineData != nil {
-									frPart.InlineData = nil // Remove blob
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		pruneOldScreenshots(history, maxScreenshots)
 
 		if !hasToolCalls {
 			emit(EventStatus, "Goal Achieved.", nil)
@@ -454,4 +351,118 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	}
 
 	return nil
+}
+
+func pruneOldScreenshots(history []*genai.Content, maxScreenshots int) {
+	screenshotsFound := 0
+	for j := len(history) - 1; j >= 0; j-- {
+		content := history[j]
+		if content.Role != "user" {
+			continue
+		}
+
+		hasScreenshot := false
+		for _, part := range content.Parts {
+			if part.InlineData != nil {
+				hasScreenshot = true
+				break
+			}
+			if part.FunctionResponse != nil {
+				for _, frPart := range part.FunctionResponse.Parts {
+					if frPart.InlineData != nil {
+						hasScreenshot = true
+						break
+					}
+				}
+			}
+		}
+
+		if hasScreenshot {
+			screenshotsFound++
+			if screenshotsFound > maxScreenshots {
+				for _, part := range content.Parts {
+					if part.InlineData != nil {
+						part.InlineData = nil
+					}
+					if part.FunctionResponse != nil {
+						for _, frPart := range part.FunctionResponse.Parts {
+							if frPart.InlineData != nil {
+								frPart.InlineData = nil
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func capturePostActionScreenshot(ctx context.Context, i int, outputDir string, emit func(EventType, string, interface{})) ([]byte, error) {
+	var newBuf []byte
+	screenshotStart := time.Now()
+
+	log.Printf("Taking post-action screenshot for turn %d...", i+1)
+	screenshotCtx, screenshotCancel := context.WithTimeout(ctx, 15*time.Second)
+	err := chromedp.Run(screenshotCtx,
+		chromedp.WaitReady("body"),
+		chromedp.CaptureScreenshot(&newBuf),
+	)
+	screenshotCancel()
+
+	if err != nil {
+		emit(EventLog, fmt.Sprintf("Screenshot failed after %v: %v. Retrying with simpler capture...", time.Since(screenshotStart), err), nil)
+		fallbackCtx, fallbackCancel := context.WithTimeout(ctx, 5*time.Second)
+		err = chromedp.Run(fallbackCtx, chromedp.CaptureScreenshot(&newBuf))
+		fallbackCancel()
+	}
+
+	if err == nil {
+		log.Printf("Post-action screenshot captured: %d bytes", len(newBuf))
+		postFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_post.png", i+1))
+		if err := os.WriteFile(postFilename, newBuf, 0644); err != nil {
+			log.Printf("Warning: failed to save post-action screenshot: %v", err)
+		}
+
+		var fullBuf []byte
+		if err := captureFullPageScreenshot(ctx, &fullBuf); err == nil {
+			fullFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_full.png", i+1))
+			_ = os.WriteFile(fullFilename, fullBuf, 0644)
+		}
+	}
+	return newBuf, err
+}
+
+func captureInitialScreenshot(ctx context.Context, outputDir string, emit func(EventType, string, interface{})) ([]byte, error) {
+	log.Println("Taking initial screenshot...")
+
+	var buf []byte
+	initialCtx, initialCancel := context.WithTimeout(ctx, 10*time.Second)
+	err := chromedp.Run(initialCtx,
+		chromedp.WaitReady("body"),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			log.Println("Internal: Browser ready, capturing initial screenshot...")
+			return nil
+		}),
+		chromedp.CaptureScreenshot(&buf),
+	)
+	initialCancel()
+
+	if err != nil {
+		emit(EventLog, fmt.Sprintf("Initial screenshot failed: %v. Retrying with simpler capture...", err), nil)
+		screenshotCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err = chromedp.Run(screenshotCtx, chromedp.CaptureScreenshot(&buf))
+		cancel()
+	}
+
+	if err != nil {
+		emit(EventError, "Failed to capture initial screenshot", err)
+		return nil, fmt.Errorf("failed to capture initial screenshot: %w", err)
+	}
+	log.Printf("Initial screenshot captured: %d bytes", len(buf))
+
+	filename := filepath.Join(outputDir, "initial.png")
+	if err := os.WriteFile(filename, buf, 0644); err != nil {
+		emit(EventLog, fmt.Sprintf("Warning: failed to save screenshot: %v", err), nil)
+	}
+	return buf, nil
 }

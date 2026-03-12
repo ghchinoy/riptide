@@ -28,7 +28,7 @@ func LoadConfig() {
 
 	// 1. Local .env
 
-	LoadEnv(".env")
+	_ = LoadEnv(".env")
 
 
 
@@ -54,7 +54,7 @@ func LoadConfig() {
 
 		xdgEnv := filepath.Join(configDir, "riptide", ".env")
 
-		LoadEnv(xdgEnv)
+		_ = LoadEnv(xdgEnv)
 
 	}
 
@@ -74,7 +74,7 @@ func LoadEnv(path string) error {
 		}
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -96,7 +96,7 @@ func LoadEnv(path string) error {
 		value = strings.Trim(value, `"'`)
 
 		if os.Getenv(key) == "" {
-			os.Setenv(key, value)
+			_ = os.Setenv(key, value)
 		}
 	}
 
