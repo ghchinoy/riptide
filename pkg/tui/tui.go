@@ -216,6 +216,13 @@ func (m Model) handleEventMsg(msg eventMsg) (tea.Model, tea.Cmd) {
 		}
 	case computer.EventError:
 		m.logs = append(m.logs, m.styles.Error.Render(fmt.Sprintf("❌ Error: %s", msg.Message)))
+		m.finished = true
+		if strings.HasPrefix(msg.Message, "Fatal:") {
+			m.status = "🛑 " + msg.Message
+		}
+		if m.autoExit {
+			return m, tea.Quit
+		}
 	case computer.EventSafety:
 		m.safetyPrompt = "🚨 " + msg.Message
 	}
