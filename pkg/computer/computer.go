@@ -68,6 +68,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		return fmt.Errorf("failed to initialize browser: %w", err)
 	}
 
+	// Configure the model
 	config := &genai.GenerateContentConfig{
 		Tools: []*genai.Tool{
 			{
@@ -92,6 +93,14 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				Threshold: genai.HarmBlockThresholdBlockNone,
 			},
 		},
+	}
+
+	// Add any custom skills to the tools schema
+	customDecls := GetCustomSkillDeclarations()
+	if len(customDecls) > 0 {
+		config.Tools = append(config.Tools, &genai.Tool{
+			FunctionDeclarations: customDecls,
+		})
 	}
 
 	// 3. Pre-flight Diagnostics
@@ -234,6 +243,43 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		for _, part := range cand.Content.Parts {
 			if part.FunctionCall != nil {
 				hasToolCalls = true
+				
+				// 1. Detect Hallucination before Execution
+				actionName := part.FunctionCall.Name
+				if actionName == "computer" {
+					if a, ok := part.FunctionCall.Args["action"].(string); ok {
+						actionName = a
+					}
+				}
+
+				if !IsToolKnown(actionName) {
+					emit(EventHallucination, fmt.Sprintf("Hallucinated Tool: %s", actionName), part.FunctionCall)
+					log.Printf("Intercepted hallucinated tool call: %s", actionName)
+					
+					// We do not execute it. We must also drop the FunctionCall from the history 
+					// so Vertex AI doesn't reject the next request with a 400.
+					
+					// Instead of a FunctionResponse (which Vertex would validate and reject), 
+					// we will inject a synthetic text prompt correcting the model.
+					
+					// Pop the hallucinated cand.Content from history (which we just appended)
+					history = history[:len(history)-1]
+					
+					// Append a correction message directly to history
+					correctionMsg := fmt.Sprintf("System Error: You attempted to use an invalid tool '%s'. Please only use tools explicitly provided in your configuration. Do not hallucinate tools like 'go_back', 'scroll_down', etc. Use the provided tools (e.g. 'computer' action='scroll_document' or 'navigate').", actionName)
+					history = append(history, &genai.Content{
+						Role: "user",
+						Parts: []*genai.Part{
+							{Text: correctionMsg},
+						},
+					})
+					
+					emit(EventLog, "Injected synthetic correction prompt for hallucinated tool", nil)
+					// Break out of the parts loop so we don't try to process this hallucination further
+					// The main loop will continue to the next turn and send the correction.
+					continue
+				}
+
 				emit(EventAction, fmt.Sprintf("Tool Call: %s", part.FunctionCall.Name), part.FunctionCall.Args)
 
 				resultMap, err := Execute(ctx, part.FunctionCall, 1280, 1024)

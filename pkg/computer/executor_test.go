@@ -236,7 +236,7 @@ func TestExecutor_Integration(t *testing.T) {
 	runTest(t, "Search", func(ctx context.Context) {
 		call := &genai.FunctionCall{
 			Name: "search",
-			Args: map[string]interface{}{"query": "test"},
+			Args: map[string]interface{}{"url": ts.URL}, // Since search maps to navigate, it needs a URL argument now
 		}
 		_, err := Execute(ctx, call, 1280, 1024)
 		if err != nil {
