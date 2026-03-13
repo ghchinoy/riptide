@@ -17,6 +17,12 @@ func init() {
 	RegisterTool("click", handleMouseClick)
 	RegisterTool("click_at", handleMouseClick)
 
+	RegisterTool("right_click", handleRightClick)
+	RegisterTool("middle_click", handleMiddleClick)
+	RegisterTool("double_click", handleDoubleClick)
+	RegisterTool("mouse_move", handleMouseMove)
+	RegisterTool("cursor_position", handleCursorPosition)
+
 	RegisterTool("type", handleType)
 	RegisterTool("input_text", handleType)
 	RegisterTool("type_text_at", handleType)
@@ -100,6 +106,71 @@ func getCoords(args map[string]interface{}, width, height int) (float64, float64
 		return x, y, nil
 	}
 	return 0, 0, fmt.Errorf("no coordinates found")
+}
+
+func handleRightClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Right clicking at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ButtonType(input.Right)))
+	return "right_clicked", err
+}
+
+func handleMiddleClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Middle clicking at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ButtonType(input.Middle)))
+	return "middle_clicked", err
+}
+
+func handleDoubleClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Double clicking at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ClickCount(2)))
+	return "double_clicked", err
+}
+
+func handleMouseMove(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	// mouse_move is functionally identical to hover in our implementation
+	return handleHover(ctx, args, width, height)
+}
+
+func handleCursorPosition(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	// Note: True cursor position is hard to fetch passively via CDP if the mouse was 
+	// moved by the user or hasn't moved yet. We inject a quick listener or rely on the last known.
+	// For simplicity, we can inject a script to return the last tracked mouse event position.
+	var pos map[string]float64
+	err := chromedp.Run(ctx, chromedp.Evaluate(`
+		(function() {
+			if (!window._riptide_mouse) {
+				window._riptide_mouse = {x: 0, y: 0};
+				document.addEventListener('mousemove', e => {
+					window._riptide_mouse.x = e.clientX;
+					window._riptide_mouse.y = e.clientY;
+				});
+			}
+			return window._riptide_mouse;
+		})()
+	`, &pos))
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Normalize back to 0-1000
+	normalized := []int{
+		int((pos["x"] / float64(width)) * 1000),
+		int((pos["y"] / float64(height)) * 1000),
+	}
+	return normalized, nil
 }
 
 func handleMouseClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
