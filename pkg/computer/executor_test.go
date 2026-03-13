@@ -300,6 +300,45 @@ func TestExecutor_Integration(t *testing.T) {
 		}
 	})
 
+	runTest(t, "CursorPosition", func(ctx context.Context) {
+		// First move the mouse to a known location to ensure the tracker has data
+		nx := (256.0 / 1280.0) * 1000.0 // 200 scaled
+		ny := (512.0 / 1024.0) * 1000.0 // 500 scaled
+		_, _ = Execute(ctx, &genai.FunctionCall{
+			Name: "mouse_move",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}, 1280, 1024)
+
+		time.Sleep(100 * time.Millisecond)
+
+		// Now query the cursor position
+		call := &genai.FunctionCall{
+			Name: "cursor_position",
+			Args: map[string]interface{}{},
+		}
+		res, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("CursorPosition failed: %v", err)
+		}
+
+		out, ok := res["output"].([]int)
+		if !ok {
+			t.Fatalf("Expected []int output, got %T: %v", res["output"], res["output"])
+		}
+		
+		if len(out) != 2 {
+			t.Fatalf("Expected 2 coordinates, got %d", len(out))
+		}
+
+		// Allow slight floating point rounding tolerance (±1)
+		if out[0] < 199 || out[0] > 201 {
+			t.Errorf("Expected normalized X ~200, got %d", out[0])
+		}
+		if out[1] < 499 || out[1] > 501 {
+			t.Errorf("Expected normalized Y ~500, got %d", out[1])
+		}
+	})
+
 	runTest(t, "GetComputedStyle", func(ctx context.Context) {
 		nx := (50.0 / 1280.0) * 1000.0
 		ny := (25.0 / 1024.0) * 1000.0
