@@ -96,20 +96,17 @@ go run main.go -prompt "Go to http://localhost:8080, enter 'Agent Smith' as the 
 
 ## Supported Actions
 
-Riptide implements the standard Gemini Computer Use toolset, augmented with advanced heuristics for reliability.
+Riptide implements **100% of the standard Gemini Computer Use toolset**, augmented with advanced heuristics for reliability and Custom Skills for deeper programmatic context.
 
-| Action | Source | Description |
+For a comprehensive matrix of every tool, alias, and capability, see the [Riptide Tools & Skill Reference](docs/tools_reference.md).
+
+| Action Type | Examples | Description |
 | :--- | :--- | :--- |
-| `mouse_click` | **Augmented** | Moves cursor and clicks. Employs **Euclidean Aim Assist** to snap to the nearest interactive element if the model's coordinates are slightly off. |
-| `type` | **Augmented** | Types text into the active or specified element. Uses **Smart JS Focus** to ensure the target input is ready for characters. |
-| `key` | **Native** | Sends individual key presses (e.g., `Enter`, `Escape`) or combinations. |
-| `scroll` | **Native** | Scrolls the viewport or specific elements by delta or direction. |
-| `drag_and_drop` | **Native** | Performs a complex mouse drag from a start to an end coordinate. |
-| `hover` | **Native** | Moves the mouse cursor to a coordinate without clicking (useful for menus). |
-| `wait` | **Native** | Pauses execution for a specified duration to allow for async UI updates. |
-| `navigate` | **Native** | Directly changes the browser URL. |
-| `get_page_layout`| **Riptide** | Scans the DOM and returns a text-based map of interactive elements. Crucial for helping the model "see" when screenshots are ambiguous. |
-| `inspect_element`| **Riptide** | Returns the computed CSS styles and ARIA attributes of an element at specific coordinates. |
+| **Native Clicks** | `left_click`, `right_click`, `double_click` | Translates normalized model coordinates into physical CDP interactions. Employs **Euclidean Aim Assist** to snap to the nearest interactive element. |
+| **Native Motions**| `scroll`, `left_click_drag`, `mouse_move` | Performs complex spatial interactions for sliders, canvas elements, and navigation. |
+| **Native Inputs** | `type`, `key` | Injects text and keyboard commands. Uses **Smart JS Focus** to ensure the target input is ready. |
+| **Custom Skills** | `get_page_layout`, `get_accessibility_tree`| Riptide-specific capabilities injected via a **Hybrid Tool Schema**. Gives the agent deterministic, programmable ways to interrogate the browser state. |
+| **Alias Patches** | `search`, `scroll_down` | Internal interceptors that catch and map common model hallucinations (e.g. `scroll_down` -> `scroll(direction='down')`) to prevent API validation crashes. |
 
 ## Configuration Flags
 
