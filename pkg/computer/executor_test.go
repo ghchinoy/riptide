@@ -69,8 +69,11 @@ func TestExecutor_Integration(t *testing.T) {
 				<html><body>
 					<button id="btn" style="position:absolute;top:0;left:0;width:100px;height:50px" onclick="fetch('/click?id=btn')">Click Me</button>
 					<input id="input" style="position:absolute;top:100px;left:0" onchange="fetch('/type?val='+this.value)">
+					<button id="hoverbtn" style="position:absolute;top:200px;left:0;width:100px;height:50px" onmouseover="fetch('/hover?id=hoverbtn')">Hover Me</button>
 				</body></html>`)
 		case "/click":
+			clicks[r.URL.Query().Get("id")]++
+		case "/hover":
 			clicks[r.URL.Query().Get("id")]++
 		case "/type":
 			lastType = r.URL.Query().Get("val")
@@ -142,6 +145,102 @@ func TestExecutor_Integration(t *testing.T) {
 		defer mu.Unlock()
 		if lastType != "Riptide" {
 			t.Errorf("Type failed, got: %q", lastType)
+		}
+	})
+
+	runTest(t, "Key", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (110.0 / 1024.0) * 1000.0
+		// Click to focus
+		_, _ = Execute(ctx, &genai.FunctionCall{
+			Name: "mouse_click",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}, 1280, 1024)
+
+		time.Sleep(100 * time.Millisecond)
+
+		// Send keys
+		_, err := Execute(ctx, &genai.FunctionCall{
+			Name: "key",
+			Args: map[string]interface{}{"text": "Hello"},
+		}, 1280, 1024)
+		if err != nil {
+			t.Fatalf("Key failed: %v", err)
+		}
+
+		_ = chromedp.Run(ctx, chromedp.KeyEvent("\r"))
+		time.Sleep(200 * time.Millisecond)
+
+		mu.Lock()
+		defer mu.Unlock()
+		if lastType != "Hello" {
+			t.Errorf("Key failed, got: %q", lastType)
+		}
+	})
+
+	runTest(t, "Hover", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (225.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "hover",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("Hover failed: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["hoverbtn"] == 0 {
+			t.Errorf("Hover was not registered")
+		}
+	})
+
+	runTest(t, "GetComputedStyle", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (25.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "get_computed_style",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		res, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("GetComputedStyle failed: %v", err)
+		}
+		
+		out, ok := res["output"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("Expected map output, got %T", res["output"])
+		}
+		if out["tagName"] != "BUTTON" {
+			t.Errorf("Expected BUTTON tag, got %v", out["tagName"])
+		}
+	})
+
+	runTest(t, "GetPageLayout", func(ctx context.Context) {
+		call := &genai.FunctionCall{
+			Name: "get_page_layout",
+			Args: map[string]interface{}{},
+		}
+		res, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("GetPageLayout failed: %v", err)
+		}
+		out, ok := res["output"].([]interface{})
+		if !ok || len(out) == 0 {
+			t.Fatalf("Expected slice output with elements, got %T", res["output"])
+		}
+	})
+
+	runTest(t, "Search", func(ctx context.Context) {
+		call := &genai.FunctionCall{
+			Name: "search",
+			Args: map[string]interface{}{"query": "test"},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
 		}
 	})
 }
