@@ -23,6 +23,7 @@ We use the `bd` (Beads) tool for all issue tracking.
 ## Go Conventions
 *   **GenAI SDK:** Use `google.golang.org/genai`.
     *   **Computer Use:** This model uses specific tool definitions (`ComputerUse`). Ensure `FunctionCall` handling is robust.
+    *   **Hybrid Tool Schema:** When extending the agent with custom capabilities, inject them as standard `genai.FunctionDeclaration` objects alongside the managed `ComputerUse` tool.
     *   **Safety:** Always check for and acknowledge `safety_decision` arguments in tool calls.
 *   **Chromedp:**
     *   Use a shared context for the session.
@@ -46,18 +47,25 @@ We use the `bd` (Beads) tool for all issue tracking.
 
 *   **Context Isolation:** Never inherit timeouts from initialization into the main loop. Always create fresh child contexts with specific timeouts for each `chromedp.Run`.
 *   **Viewport Stability:** Prefer a larger default viewport (e.g., 1280x1024) to reduce the likelihood of elements being pushed "below the fold" or into complex overflow containers.
+*   **Hallucination Defense:** The model will occasionally hallucinate tools. Never return a `FunctionResponse` for an unknown tool, as this triggers a 400 Invalid Argument error from Vertex AI. Instead, use an Alias Mapper to reroute common mistakes, or safely reject the call by popping the hallucination from the history array and injecting a synthetic correction prompt.
 *   **Interaction Fallbacks:**
     *   Use "Deep" element detection to penetrate Shadow DOM (found in many modern UI frameworks).
     *   Combine physical mouse events with JS `focus()` and `scrollIntoView({block: "center"})` to ensure the target is ready for interaction.
-*   **TUI Event Handling:** Ensure the TUI maintains a history of "thinking" events. Models often emit multiple thoughts per turn, and overwriting a single string leads to loss of reasoning context.
+*   **TUI Event Handling:** Ensure the TUI maintains a history of "thinking" events. Models often emit multiple thoughts per turn, and overwriting a single string leads to loss of reasoning context. Crucially, always ensure terminal states (like `EventError`) explicitly toggle `m.finished = true` to prevent the UI from hanging on a spinner.
 
 ## Lessons Learned
 
 *   **Coordinate Systems:** Gemini Computer Use outputs normalized (0-1000) coordinates. These *must* be denormalized to the browser's viewport size (e.g., 1024x768) before passing to `chromedp`.
 
+*   **CDP Mouse Tracking:** Simulating mouse events via CDP (`chromedp.MouseClickXY` or `input.DispatchMouseEvent`) does *not* reliably trigger DOM `mousemove` event listeners in a headless context. To return data for tools like `cursor_position`, state must be tracked at the Go/Executor level rather than relying on injected JS listeners.
+
 *   **Interaction Loop:** The model often expects to see the result of its action. Capturing a screenshot *immediately* after an action (and potentially a short sleep) is critical for the next turn.
 
 *   **Context Management:** Crucial: Do not inherit timeouts from initialization (pre-flight) into the long-lived session context. This leads to `context canceled` errors during API calls.
+
+*   **Coordinate Re-normalization:** When adding tools that *return* spatial data to the LLM (e.g. `cursor_position`), remember that the LLM only understands the normalized 0-1000 coordinate system. Any underlying browser data extracted in absolute pixels must be re-normalized to this scale before being returned.
+
+*   **Fixture-Based Testing:** When testing DOM-dependent logic in the `computer` package, avoid pure unit tests. Always use the `cmd/testserver` to serve a literal HTML fixture to ensure your Go code interfaces with a genuine browser environment accurately.
 
 *   **Observability:** For headless debugging, the TUI must provide toggles for:
 
