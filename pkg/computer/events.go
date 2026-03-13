@@ -12,6 +12,7 @@ const (
 	EventSafety   EventType = "safety"
 	EventThinking EventType = "thinking"
 	EventRaw      EventType = "raw"
+	EventHallucination EventType = "hallucination"
 )
 
 // Event represents a single update from the computer loop.

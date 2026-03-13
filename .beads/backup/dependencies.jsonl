@@ -4,6 +4,10 @@
 {"created_at":"2026-03-11T23:53:53Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-6iu","issue_id":"riptide-6iu.2","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-11T23:53:54Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-6iu","issue_id":"riptide-6iu.3","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T00:03:38Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-b19","issue_id":"riptide-az8","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:08:26Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-c7z","issue_id":"riptide-c7z.1","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:08:26Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-c7z","issue_id":"riptide-c7z.2","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:08:27Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-c7z","issue_id":"riptide-c7z.3","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:08:27Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-c7z","issue_id":"riptide-c7z.4","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T00:03:33Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-qqw","issue_id":"riptide-cue","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T08:22:41Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-870","issue_id":"riptide-dc9","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T00:03:28Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-xas","issue_id":"riptide-eqw","metadata":"{}","type":"parent-child"}
@@ -12,3 +16,6 @@
 {"created_at":"2026-03-12T08:19:40Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-mkq.6","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T08:19:30Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-pi8.1","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T00:03:44Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-b19","issue_id":"riptide-u1r","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:41:36Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-u1r","issue_id":"riptide-u1r.1","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:41:37Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-u1r","issue_id":"riptide-u1r.2","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T18:41:37Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-u1r","issue_id":"riptide-u1r.3","metadata":"{}","type":"parent-child"}

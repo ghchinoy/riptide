@@ -50,6 +50,12 @@ func init() {
 	RegisterTool("open_web_browser", func(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
 		return "browser_opened", nil
 	})
+
+	RegisterTool("go_back", func(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
+		log.Printf("Executing go_back")
+		err := chromedp.Run(ctx, chromedp.NavigateBack())
+		return "navigated back", err
+	})
 }
 
 func handleNavigateWrapper(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
