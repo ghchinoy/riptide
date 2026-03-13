@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -84,11 +85,31 @@ func TestGetSession(t *testing.T) {
 [thinking] I should do X <nil>
 [action] Tool Call: click map[] <nil>`), 0644)
 
+	// Create a dummy index.html for SPA testing
+	os.MkdirAll("frontend/dist", 0755)
+	os.WriteFile("frontend/dist/index.html", []byte("SPA Fallback"), 0644)
+
 	r := chi.NewRouter()
-	r.Get("/sessions/{id}", getSession)
+
+	// Setup the same routing as main.go
+	sessionsBaseDir := filepath.Join(tempWd, "sessions")
+
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/sessions/{id}", getSession)
+	})
+
+	r.Handle("/sessions/*", http.StripPrefix("/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(tempWd, "frontend/dist/index.html"))
+	})
 
 	// Test valid session
-	req := httptest.NewRequest("GET", "/sessions/sess-123", nil)
+	req := httptest.NewRequest("GET", "/api/v1/sessions/sess-123", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -110,12 +131,24 @@ func TestGetSession(t *testing.T) {
 		t.Errorf("Expected action 'click map[]', got %q", session.Turns[0].Action)
 	}
 
-	// Test invalid session
-	req = httptest.NewRequest("GET", "/sessions/missing", nil)
+	// Test invalid session via API (should 404)
+	req = httptest.NewRequest("GET", "/api/v1/sessions/missing", nil)
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
-		t.Errorf("Expected 404 Not Found, got %v", rr.Code)
+		t.Errorf("Expected 404 Not Found for API, got %v", rr.Code)
+	}
+
+	// Test SPA routing fallback (should 200 and serve index.html)
+	req = httptest.NewRequest("GET", "/missing-route", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for SPA fallback, got %v", rr.Code)
+	}
+	if rr.Body.String() != "SPA Fallback" {
+		t.Errorf("Expected 'SPA Fallback', got %q", rr.Body.String())
 	}
 }

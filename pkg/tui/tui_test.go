@@ -59,18 +59,52 @@ func TestModelUpdate(t *testing.T) {
 		t.Fatal("Expected tea.Quit command since autoExit is true")
 	}
 
-	// 3. Event thinking
+	// 3. Event thinking (consecutive appends)
+	prevLogsLen := len(m.logs)
 	retModel, _ = m.Update(eventMsg{Type: computer.EventThinking, Message: "I am thinking"})
 	m = retModel.(Model)
 	if m.thinking != "🧠 I am thinking" {
 		t.Errorf("Expected thinking string to be set, got %s", m.thinking)
 	}
+	if len(m.logs) != prevLogsLen+1 {
+		t.Errorf("Expected logs to increase by 1, got %d vs %d", len(m.logs), prevLogsLen)
+	}
+	
+	retModel, _ = m.Update(eventMsg{Type: computer.EventThinking, Message: "Thinking more"})
+	m = retModel.(Model)
+	if len(m.logs) != prevLogsLen+2 {
+		t.Errorf("Expected consecutive thinking events to append to logs, got length %d", len(m.logs))
+	}
 
 	// 4. Event error
-	prevLogsLen := len(m.logs)
+	prevLogsLen = len(m.logs)
 	retModel, _ = m.Update(eventMsg{Type: computer.EventError, Message: "Something broke"})
 	m = retModel.(Model)
 	if len(m.logs) <= prevLogsLen {
 		t.Fatal("Expected logs to increase")
+	}
+
+	// 5. Test 'l' (show logs)
+	retModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	m = retModel.(Model)
+	if !m.showLogs {
+		t.Fatal("Expected showLogs to be true")
+	}
+	retModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = retModel.(Model)
+	if m.showLogs {
+		t.Fatal("Expected showLogs to be false after escape")
+	}
+
+	// 6. Test 'h' (show history)
+	retModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	m = retModel.(Model)
+	if !m.showHistory {
+		t.Fatal("Expected showHistory to be true")
+	}
+	retModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = retModel.(Model)
+	if m.showHistory {
+		t.Fatal("Expected showHistory to be false after escape")
 	}
 }
