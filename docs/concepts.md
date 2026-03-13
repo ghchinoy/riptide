@@ -35,15 +35,15 @@ The Orchestration layer manages the lifecycle of a session.
 *   **Context Pruning:** To maintain efficiency within the model's token limit, the loop manages a sliding window of recent screenshots, removing older visual data while retaining the text-based reasoning history.
 *   **Safety Interception:** Intercepts `safety_decision` markers from the model, enabling automated acknowledgement or human-in-the-loop verification for sensitive actions.
 
-### 3. Augmented Skills (Application Layer)
-While the agent can navigate visually, certain tasks are better handled programmatically. Riptide classifies its tools into four categories to optimize both model performance and developer observability:
+### 3. Augmented Skills (The Hybrid Schema)
+While the agent can navigate visually using the native `genai.ComputerUse` tool, certain tasks are better handled programmatically. Riptide classifies its tools into four categories to optimize both model performance and developer observability. We inject these custom capabilities alongside the native tools using a **Hybrid Tool Schema**.
 
-*   **Standard (Native):** Core interactions defined by the Gemini Computer Use spec (e.g., clicks, typing).
-*   **Skills (Augmented):** Riptide-specific capabilities that provide high-reliability data (e.g., `get_page_layout` for DOM scanning).
-*   **Patches (Robustness):** Handlers that intercept common model hallucinations or legacy tool names to ensure loop continuity.
+*   **Standard (Native):** Core interactions defined by the Vertex AI Computer Use spec (e.g., `left_click`, `type`, `scroll`). Riptide acts purely as an executor for these.
+*   **Skills (Custom Schemas):** Riptide-specific capabilities that provide high-reliability data (e.g., `get_page_layout` for DOM scanning, `get_accessibility_tree`). These are dynamically registered as `genai.FunctionDeclaration` objects.
+*   **Patches (Alias Mappers):** Interceptors that catch common model hallucinations (e.g., mapping a hallucinated `scroll_down` call to `scroll(direction="down")`) to ensure the Vertex API doesn't crash with a 400 Invalid Argument error.
 *   **Utility:** Framework-level helpers (e.g., `wait`, `navigate`) that manage the browser lifecycle.
 
-**Tactile Feedback:** Future iterations will return programmatic values back to the model, providing immediate verification of action success.
+For a complete breakdown of every tool and its category, see the [Tools Reference](tools_reference.md).
 
 ### 4. Context, Identity, & State Management
 This layer defines the environment in which the agent operates.

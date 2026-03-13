@@ -21,7 +21,9 @@ This section tracks the evolution of **Riptide**, documenting the "failed" paths
 *   **The Pivot:** We added `scrollIntoView({block: 'center'})` before every interaction. This ensures the target is always in a predictable visual location for the model's next turn.
 *   **Lesson:** Control the environment's physics. If the page moves, the model's "memory" of the screenshot is broken.
 
-## Shadow DOM Blindness
-*   **The Problem:** Standard JS `querySelector` cannot see inside Shadow Roots (common in Web Components like Salesforce or modern UI kits). The agent would see a button in the screenshot but fail to click it.
-*   **The Pivot:** We implemented "Deep Hit" detection using `document.elementFromPoint` and recursive shadow root traversal to find the actual interactive node.
-*   **Lesson:** The visual layer (Screenshot) sees everything, but the programmatic layer (CDP) is restricted by DOM boundaries. You must bridge this gap.
+## Hallucinated Tools & 400 Invalid Argument Errors
+*   **The Problem:** The model would occasionally hallucinate tools that weren't explicitly defined (like `scroll_down`). Our local executor would catch this, generate an error response (`unknown action`), and append it to the context history. When this history was sent back to Vertex AI on the next turn, the API strictly validated the `FunctionResponse` against the defined schema, rejected the unknown tool name, and crashed the entire session with a `400 Invalid Argument`.
+*   **The Pivot:** We implemented a two-part defense in `executor.go`:
+    1.  **Alias Mapping:** Common hallucinations (`scroll_down`, `search`) are silently intercepted and re-mapped to valid tools (`scroll(direction="down")`, `navigate`) before execution.
+    2.  **Safe Rejection:** If a tool is truly unknown, we immediately pop the offending `cand.Content` off the history array and inject a synthetic system prompt (`"Error: You attempted to use an invalid tool..."`). This prevents the invalid tool name from ever reaching the Vertex API validator while still teaching the model to correct its mistake.
+*   **Lesson:** When wrapping managed AI APIs, you must vigorously sanitize the conversation history. The LLM might be flexible, but the backend validators are not.
