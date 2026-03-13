@@ -39,6 +39,11 @@ func simplifyAXTree(nodes []*accessibility.Node) []SimpleAXNode {
 		}
 
 		role := fmt.Sprintf("%v", node.Role.Value)
+		// Strip quotes if present (jsontext.Value formats strings with quotes)
+		if len(role) >= 2 && role[0] == '"' && role[len(role)-1] == '"' {
+			role = role[1 : len(role)-1]
+		}
+		
 		// Only include nodes that are likely interactive or provide content
 		if role == "StaticText" || role == "generic" || role == "LineBreak" {
 			continue
@@ -50,11 +55,19 @@ func simplifyAXTree(nodes []*accessibility.Node) []SimpleAXNode {
 		}
 
 		if node.Name != nil {
-			sNode.Name = fmt.Sprintf("%v", node.Name.Value)
+			nameVal := fmt.Sprintf("%v", node.Name.Value)
+			if len(nameVal) >= 2 && nameVal[0] == '"' && nameVal[len(nameVal)-1] == '"' {
+				nameVal = nameVal[1 : len(nameVal)-1]
+			}
+			sNode.Name = nameVal
 		}
 
 		if node.Value != nil {
-			sNode.Value = fmt.Sprintf("%v", node.Value.Value)
+			valStr := fmt.Sprintf("%v", node.Value.Value)
+			if len(valStr) >= 2 && valStr[0] == '"' && valStr[len(valStr)-1] == '"' {
+				valStr = valStr[1 : len(valStr)-1]
+			}
+			sNode.Value = valStr
 		}
 
 		// Extract interesting states
@@ -63,6 +76,9 @@ func simplifyAXTree(nodes []*accessibility.Node) []SimpleAXNode {
 				continue
 			}
 			val := fmt.Sprintf("%v", prop.Value.Value)
+			if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
+				val = val[1 : len(val)-1]
+			}
 			if val == "false" || val == "" {
 				continue
 			}
