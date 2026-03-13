@@ -70,10 +70,23 @@ func TestExecutor_Integration(t *testing.T) {
 					<button id="btn" style="position:absolute;top:0;left:0;width:100px;height:50px" onclick="fetch('/click?id=btn')">Click Me</button>
 					<input id="input" style="position:absolute;top:100px;left:0" onchange="fetch('/type?val='+this.value)">
 					<button id="hoverbtn" style="position:absolute;top:200px;left:0;width:100px;height:50px" onmouseover="fetch('/hover?id=hoverbtn')">Hover Me</button>
+					
+					<button id="rightbtn" style="position:absolute;top:300px;left:0;width:100px;height:50px" oncontextmenu="event.preventDefault(); fetch('/rightclick?id=rightbtn')">Right Click</button>
+					<button id="midbtn" style="position:absolute;top:400px;left:0;width:100px;height:50px" onauxclick="if(event.button === 1) fetch('/midclick?id=midbtn')">Mid Click</button>
+					<button id="dblbtn" style="position:absolute;top:500px;left:0;width:100px;height:50px" ondblclick="fetch('/dblclick?id=dblbtn')">Double Click</button>
+					<div id="movezone" style="position:absolute;top:600px;left:0;width:100px;height:50px;background:red" onmousemove="fetch('/mousemove?id=movezone')">Move Zone</div>
 				</body></html>`)
 		case "/click":
 			clicks[r.URL.Query().Get("id")]++
 		case "/hover":
+			clicks[r.URL.Query().Get("id")]++
+		case "/rightclick":
+			clicks[r.URL.Query().Get("id")]++
+		case "/midclick":
+			clicks[r.URL.Query().Get("id")]++
+		case "/dblclick":
+			clicks[r.URL.Query().Get("id")]++
+		case "/mousemove":
 			clicks[r.URL.Query().Get("id")]++
 		case "/type":
 			lastType = r.URL.Query().Get("val")
@@ -194,6 +207,82 @@ func TestExecutor_Integration(t *testing.T) {
 		defer mu.Unlock()
 		if clicks["hoverbtn"] == 0 {
 			t.Errorf("Hover was not registered")
+		}
+	})
+
+	runTest(t, "RightClick", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (325.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "right_click",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("RightClick failed: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["rightbtn"] == 0 {
+			t.Errorf("Right click was not registered")
+		}
+	})
+
+	runTest(t, "MiddleClick", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (425.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "middle_click",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("MiddleClick failed: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["midbtn"] == 0 {
+			t.Errorf("Middle click was not registered")
+		}
+	})
+
+	runTest(t, "DoubleClick", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (525.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "double_click",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("DoubleClick failed: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["dblbtn"] == 0 {
+			t.Errorf("Double click was not registered")
+		}
+	})
+
+	runTest(t, "MouseMove", func(ctx context.Context) {
+		nx := (50.0 / 1280.0) * 1000.0
+		ny := (625.0 / 1024.0) * 1000.0
+		call := &genai.FunctionCall{
+			Name: "mouse_move",
+			Args: map[string]interface{}{"x": nx, "y": ny},
+		}
+		_, err := Execute(ctx, call, 1280, 1024)
+		if err != nil {
+			t.Fatalf("MouseMove failed: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		if clicks["movezone"] == 0 {
+			t.Errorf("Mouse move was not registered")
 		}
 	})
 
