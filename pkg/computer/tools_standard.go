@@ -127,6 +127,8 @@ func handleRightClick(ctx context.Context, args map[string]interface{}, width, h
 	if err != nil {
 		return nil, err
 	}
+	lastMouseX = x
+	lastMouseY = y
 	log.Printf("Right clicking at %f, %f", x, y)
 	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ButtonType(input.Right)))
 	return "right_clicked", err
@@ -137,6 +139,8 @@ func handleMiddleClick(ctx context.Context, args map[string]interface{}, width, 
 	if err != nil {
 		return nil, err
 	}
+	lastMouseX = x
+	lastMouseY = y
 	log.Printf("Middle clicking at %f, %f", x, y)
 	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ButtonType(input.Middle)))
 	return "middle_clicked", err
@@ -147,6 +151,8 @@ func handleDoubleClick(ctx context.Context, args map[string]interface{}, width, 
 	if err != nil {
 		return nil, err
 	}
+	lastMouseX = x
+	lastMouseY = y
 	log.Printf("Double clicking at %f, %f", x, y)
 	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ClickCount(2)))
 	return "double_clicked", err
@@ -158,40 +164,28 @@ func handleMouseMove(ctx context.Context, args map[string]interface{}, width, he
 }
 
 func handleCursorPosition(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
-	// Note: True cursor position is hard to fetch passively via CDP if the mouse was 
-	// moved by the user or hasn't moved yet. We inject a quick listener or rely on the last known.
-	// For simplicity, we can inject a script to return the last tracked mouse event position.
-	var pos map[string]float64
-	err := chromedp.Run(ctx, chromedp.Evaluate(`
-		(function() {
-			if (!window._riptide_mouse) {
-				window._riptide_mouse = {x: 0, y: 0};
-				document.addEventListener('mousemove', e => {
-					window._riptide_mouse.x = e.clientX;
-					window._riptide_mouse.y = e.clientY;
-				});
-			}
-			return window._riptide_mouse;
-		})()
-	`, &pos))
-	
-	if err != nil {
-		return nil, err
-	}
-	
-	// Normalize back to 0-1000
+	// CDP doesn't have a reliable way to query absolute mouse position on demand without 
+	// injecting tracking into the DOM ahead of time.
+	// Since we are the only thing moving the mouse via tools, we track the last dispatched coordinate.
 	normalized := []int{
-		int((pos["x"] / float64(width)) * 1000),
-		int((pos["y"] / float64(height)) * 1000),
+		int((lastMouseX / float64(width)) * 1000),
+		int((lastMouseY / float64(height)) * 1000),
 	}
 	return normalized, nil
 }
+
+var (
+	lastMouseX float64
+	lastMouseY float64
+)
 
 func handleMouseClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
 	x, y, err := getCoords(args, width, height)
 	if err != nil {
 		return nil, err
 	}
+	lastMouseX = x
+	lastMouseY = y
 	log.Printf("Clicking at %f, %f", x, y)
 	var winInfo string
 	if err := chromedp.Run(ctx, chromedp.Evaluate(`"win:" + window.innerWidth + "x" + window.innerHeight + " vp:" + document.documentElement.clientWidth + "x" + document.documentElement.clientHeight`, &winInfo)); err == nil {
@@ -411,6 +405,8 @@ func handleHover(ctx context.Context, args map[string]interface{}, width, height
 	if err != nil {
 		return nil, err
 	}
+	lastMouseX = x
+	lastMouseY = y
 	log.Printf("Hovering at (%f, %f)", x, y)
 	err = chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		return input.DispatchMouseEvent(input.MouseMoved, x, y).Do(ctx)
