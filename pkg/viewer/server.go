@@ -184,18 +184,36 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 
 	var turns []Turn
 	var currentTurn *Turn
+	var sessionLogs []string
+	var sessionRaw []map[string]interface{}
 
 	scanner := bufio.NewScanner(file)
 	turnRe := regexp.MustCompile(`\[status\] Turn (\d+)/`)
 	promptRe := regexp.MustCompile(`\[log\] Prompt: (.+)`)
 	thinkingRe := regexp.MustCompile(`\[thinking\] (.+)`)
 	actionRe := regexp.MustCompile(`\[action\] Tool Call: (.+)`)
+	logRe := regexp.MustCompile(`\[log\] (.+)`)
+	rawRe := regexp.MustCompile(`\[raw\] (.+)`)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if m := promptRe.FindStringSubmatch(line); len(m) > 1 {
 			session.Prompt = strings.TrimSuffix(m[1], " <nil>")
+		}
+
+		if m := logRe.FindStringSubmatch(line); len(m) > 1 {
+			// Don't duplicate the prompt log
+			if !strings.HasPrefix(m[1], "Prompt:") {
+				sessionLogs = append(sessionLogs, strings.TrimSuffix(m[1], " <nil>"))
+			}
+		}
+
+		if m := rawRe.FindStringSubmatch(line); len(m) > 1 {
+			rawContent := strings.TrimSuffix(m[1], " <nil>")
+			// It might be a Go struct representation or JSON depending on how it was logged, 
+			// but we can try to pass it as a generic map or just a string. For now, a simple map wrapping a string is safe.
+			sessionRaw = append(sessionRaw, map[string]interface{}{"data": rawContent})
 		}
 
 		if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
@@ -223,10 +241,23 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		turns = append(turns, *currentTurn)
 	}
 	session.Turns = turns
+	
+	// Add logs and raw to a wrapper or add them to the Session struct
+	// Let's add them to the JSON output by creating a custom response object just for this endpoint.
+	resp := struct {
+		Session
+		Logs []string                 `json:"logs"`
+		Raw  []map[string]interface{} `json:"raw"`
+	}{
+		Session: session,
+		Logs:    sessionLogs,
+		Raw:     sessionRaw,
+	}
+
 	log.Printf("Returning session %s with %d turns", session.ID, len(session.Turns))
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(session)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func peekMetadata(path string) (string, string) {
@@ -247,7 +278,10 @@ func peekMetadata(path string) (string, string) {
 				prompt = strings.TrimSuffix(m[1], " <nil>")
 			}
 		}
-		if strings.Contains(line, "Session Finished.") {
+		if strings.Contains(line, "Session Finished.") || 
+			strings.Contains(line, "Max Turns Reached.") || 
+			strings.Contains(line, "Goal Achieved.") || 
+			strings.Contains(line, "Fatal:") {
 			status = "finished"
 		}
 	}
