@@ -13,10 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghchinoy/riptide/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/ghchinoy/riptide/pkg/utils"
+	"github.com/gorilla/websocket"
 )
 
 type Session struct {
@@ -36,13 +37,43 @@ type Turn struct {
 	FullPage   string   `json:"full_page"`
 }
 
-// Start initializes and runs the session viewer web server.
-// If port is empty, it defaults to ":8083".
-func Start(port string) error {
-	if port == "" {
-		port = ":8083"
+// Server represents the viewer HTTP server
+type Server struct {
+	port string
+	hub  *Hub
+}
+
+// Global server instance
+var defaultServer *Server
+
+func init() {
+	defaultServer = &Server{
+		port: ":8083",
+		hub:  NewHub(),
 	}
-	
+	go defaultServer.hub.Run()
+}
+
+// Start initializes and runs the session viewer web server on the default port.
+func Start(port string) error {
+	if port != "" {
+		defaultServer.port = port
+	}
+	return defaultServer.Start()
+}
+
+// BroadcastEvent allows an external process (like the agent loop) to send an event to all connected UI clients.
+func BroadcastEvent(sessionID string, payload []byte) {
+	if defaultServer != nil && defaultServer.hub != nil {
+		defaultServer.hub.Broadcast <- BroadcastMessage{
+			SessionID: sessionID,
+			Payload:   payload,
+		}
+	}
+}
+
+// Start initializes and runs the session viewer web server.
+func (s *Server) Start() error {
 	utils.LoadConfig()
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -59,6 +90,7 @@ func Start(port string) error {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/sessions", listSessions)
 		r.Get("/sessions/{id}", getSession)
+		r.Get("/sessions/{id}/stream", s.serveWs) // WebSocket endpoint
 
 		// Serve sessions content (logs, screenshots) under API
 		r.Handle("/sessions/*", http.StripPrefix("/api/v1/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
@@ -78,8 +110,8 @@ func Start(port string) error {
 		http.ServeFile(w, r, filepath.Join(workDir, "frontend/dist/index.html"))
 	})
 
-	log.Printf("Session Viewer backend listening on %s", port)
-	return http.ListenAndServe(port, r)
+	log.Printf("Session Viewer backend listening on %s", s.port)
+	return http.ListenAndServe(s.port, r)
 }
 
 func listSessions(w http.ResponseWriter, r *http.Request) {
@@ -227,4 +259,55 @@ func strconv_atoi(s string) (int, error) {
 	var n int
 	_, err := fmt.Sscanf(s, "%d", &n)
 	return n, err
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // allow CORS
+	},
+}
+
+// serveWs handles websocket requests from the peer.
+func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
+	sessionID := chi.URLParam(r, "id")
+	if sessionID == "" {
+		http.Error(w, "Session ID required", http.StatusBadRequest)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+
+	client := &Client{
+		hub:       s.hub,
+		sessionID: sessionID,
+		conn:      conn,
+		send:      make(chan []byte, 256),
+	}
+	client.hub.register <- client
+
+	// Allow collection of memory referenced by the caller by doing all work in
+	// new goroutines.
+	go client.writePump()
+
+	// We don't need a readPump because the client only listens in this architecture,
+	// but we must read from the connection to process ping/pong/close messages
+	// so the connection doesn't silently die.
+	go func() {
+		defer func() {
+			client.hub.unregister <- client
+			client.conn.Close()
+		}()
+		for {
+			_, _, err := client.conn.ReadMessage()
+			if err != nil {
+				break
+			}
+		}
+	}()
 }

@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 
 	"flag"
 
@@ -129,14 +130,14 @@ func main() {
 	}
 
 	if !*useTUI {
-		runHeadlessMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode)
+		runHeadlessMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode, *serve)
 		return
 	}
 
-	runTUIMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode, *quitOnExit, *highContrast)
+	runTUIMode(ctx, client, *sessionsDir, sessionID, *prompt, *makeGif, *showBrowser, finalUA, *useAXT, *maxTurns, *maxScreenshots, *mode, *quitOnExit, *highContrast, *serve)
 }
 
-func runHeadlessMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string) {
+func runHeadlessMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string, serve bool) {
 	fmt.Printf("Starting Session: %s\n", sessionID)
 	// Interactive Safety Handler
 	safetyHandler := func(explanation string) bool {
@@ -150,7 +151,16 @@ func runHeadlessMode(ctx context.Context, client *genai.Client, sessionsDir, ses
 		return response == "y" || response == "Y" || response == "yes"
 	}
 
-	if err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, makeGif, showBrowser, finalUA, useAXT, nil, safetyHandler, maxTurns, maxScreenshots, mode); err != nil {
+	var observer computer.Observer
+	if serve {
+		observer = func(e computer.Event) {
+			if b, err := json.Marshal(e); err == nil {
+				viewer.BroadcastEvent(sessionID, b)
+			}
+		}
+	}
+
+	if err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, makeGif, showBrowser, finalUA, useAXT, observer, safetyHandler, maxTurns, maxScreenshots, mode); err != nil {
 		if err == context.Canceled {
 			fmt.Println("\nRun cancelled by user.")
 		} else {
@@ -159,13 +169,28 @@ func runHeadlessMode(ctx context.Context, client *genai.Client, sessionsDir, ses
 	}
 }
 
-func runTUIMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string, quitOnExit, highContrast bool) {
+func runTUIMode(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, finalUA string, useAXT bool, maxTurns, maxScreenshots int, mode string, quitOnExit, highContrast, serve bool) {
 	m := tui.NewModel(sessionsDir, sessionID, quitOnExit, highContrast)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	// Run agent in goroutine
 	go func() {
-		observer := m.GetObserver(p)
+		tuiObserver := m.GetObserver(p)
+
+		var observer computer.Observer
+		if serve {
+			observer = func(e computer.Event) {
+				// Send to TUI
+				tuiObserver(e)
+				// Broadcast to WebSocket
+				if b, err := json.Marshal(e); err == nil {
+					viewer.BroadcastEvent(sessionID, b)
+				}
+			}
+		} else {
+			observer = tuiObserver
+		}
+
 		safetyHandler := m.GetSafetyHandler(p)
 
 		err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, makeGif, showBrowser, finalUA, useAXT, observer, safetyHandler, maxTurns, maxScreenshots, mode)
