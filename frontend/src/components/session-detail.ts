@@ -187,7 +187,10 @@ export class SessionDetail extends LitElement {
             </div>
             <h3>Raw Interactions (JSON)</h3>
             <div class="log-container">
-              ${this.session.raw?.length ? this.session.raw.map((r: any) => html`<pre class="raw-json">${r.data}</pre>`) : html`<div class="log-line empty">No raw data available.</div>`}
+              ${this.session.raw?.length ? this.session.raw.map((r: any) => html`
+                <div class="raw-title">${r.title || 'Raw Event'}</div>
+                <pre class="raw-json">${typeof r.data === 'string' ? r.data : JSON.stringify(r.data, null, 2)}</pre>
+              `) : html`<div class="log-line empty">No raw data available.</div>`}
             </div>
           </div>
         ` : ''}
@@ -268,7 +271,8 @@ export class SessionDetail extends LitElement {
     }
     .log-line { margin-bottom: 4px; }
     .log-line.empty { color: #888; font-style: italic; }
-    .raw-json { margin: 0 0 12px 0; white-space: pre-wrap; word-wrap: break-word; color: #9cdcfe; border-bottom: 1px solid #333; padding-bottom: 8px; }
+    .raw-title { color: #569cd6; font-weight: bold; margin-top: 12px; margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    .raw-json { margin: 0 0 12px 0; white-space: pre-wrap; word-wrap: break-word; color: #9cdcfe; }
     
     .turns { display: flex; flex-direction: column; gap: 32px; }
     .turn-card {

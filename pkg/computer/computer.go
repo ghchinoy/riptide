@@ -34,7 +34,15 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		// Always log to session log file as well
-		log.Printf("[%s] %s %+v", t, msg, data)
+		if t == EventRaw && data != nil {
+			if b, err := json.Marshal(data); err == nil {
+				log.Printf("[%s] %s %s", t, msg, string(b))
+			} else {
+				log.Printf("[%s] %s %+v", t, msg, data)
+			}
+		} else {
+			log.Printf("[%s] %s %+v", t, msg, data)
+		}
 		if observer != nil {
 			observer(Event{
 				Type:      t,
