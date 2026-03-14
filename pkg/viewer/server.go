@@ -214,7 +214,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 	thinkingRe := regexp.MustCompile(`\[thinking\] (.+)`)
 	actionRe := regexp.MustCompile(`\[action\] Tool Call: (.+)`)
 	logRe := regexp.MustCompile(`\[log\] (.+)`)
-	rawRe := regexp.MustCompile(`\[raw\] (.+)`)
+	rawRe := regexp.MustCompile(`\[raw\] (.*?)\s*(\{.*\}|\[.*\]|&?\{.*)`)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -230,11 +230,30 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if m := rawRe.FindStringSubmatch(line); len(m) > 1 {
-			rawContent := strings.TrimSuffix(m[1], " <nil>")
-			// It might be a Go struct representation or JSON depending on how it was logged, 
-			// but we can try to pass it as a generic map or just a string. For now, a simple map wrapping a string is safe.
-			sessionRaw = append(sessionRaw, map[string]interface{}{"data": rawContent})
+		if m := rawRe.FindStringSubmatch(line); len(m) > 2 {
+			title := strings.TrimSpace(m[1])
+			contentStr := strings.TrimSuffix(m[2], " <nil>")
+			
+			var parsedData interface{}
+			if err := json.Unmarshal([]byte(contentStr), &parsedData); err == nil {
+				// It's valid JSON
+				sessionRaw = append(sessionRaw, map[string]interface{}{
+					"title": title,
+					"data":  parsedData,
+				})
+			} else {
+				// Fallback to raw string
+				sessionRaw = append(sessionRaw, map[string]interface{}{
+					"title": title,
+					"data":  contentStr,
+				})
+			}
+		} else if m := regexp.MustCompile(`\[raw\] (.+)`).FindStringSubmatch(line); len(m) > 1 {
+			// Fallback for older logs without JSON
+			sessionRaw = append(sessionRaw, map[string]interface{}{
+				"title": "Raw Event",
+				"data":  strings.TrimSuffix(m[1], " <nil>"),
+			})
 		}
 
 		if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
