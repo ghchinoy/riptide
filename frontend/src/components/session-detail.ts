@@ -26,6 +26,9 @@ export class SessionDetail extends LitElement {
 
   private apiBase = '/api/v1';
 
+  private ws: WebSocket | null = null;
+  private currentTurnBuffer: any = null;
+
   async firstUpdated() {
     if (this.location?.params?.id) {
       await this._fetchSession(this.location.params.id);
@@ -34,7 +37,22 @@ export class SessionDetail extends LitElement {
 
   async updated(changedProps: Map<string, any>) {
     if (changedProps.has('location') && this.location?.params?.id) {
-      await this._fetchSession(this.location.params.id);
+      if (this.session && this.session.id !== this.location.params.id) {
+        this._closeWebSocket();
+        await this._fetchSession(this.location.params.id);
+      }
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._closeWebSocket();
+  }
+
+  private _closeWebSocket() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
     }
   }
 
@@ -50,11 +68,89 @@ export class SessionDetail extends LitElement {
       }
       this.session = await resp.json();
       console.log('Session loaded:', this.session);
+
+      // Initialize Turn Buffer based on latest state if any
+      if (this.session && this.session.turns && this.session.turns.length > 0) {
+        this.currentTurnBuffer = { ...this.session.turns[this.session.turns.length - 1] };
+      } else {
+        this.currentTurnBuffer = null;
+      }
+
+      this._connectWebSocket(id);
+
     } catch (err: any) {
       console.error('Failed to fetch session detail', err);
       this.error = err.toString();
     } finally {
       this.loading = false;
+    }
+  }
+
+  private _connectWebSocket(id: string) {
+    this._closeWebSocket();
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Use the explicit API backend port (8083) if we're running dev server on 5173
+    const host = window.location.port === '5173' ? 'localhost:8083' : window.location.host;
+    const wsUrl = `${protocol}//${host}${this.apiBase}/sessions/${id}/stream`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this._handleLiveEvent(data);
+      } catch (e) {
+        console.error("Failed to parse websocket message", e);
+      }
+    };
+
+    this.ws.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+  }
+
+  private _handleLiveEvent(event: any) {
+    if (!this.session) return;
+    
+    // We only care about specific events to build up our turn buffer
+    if (event.Type === "status" && event.Message.startsWith("Turn ")) {
+      // Parse turn index
+      const match = event.Message.match(/Turn (\d+)\//);
+      if (match) {
+        const idx = parseInt(match[1], 10);
+        
+        // If we have an existing buffer that is older, push it to the main turns array
+        if (this.currentTurnBuffer && this.currentTurnBuffer.index !== idx) {
+          if (!this.session.turns) this.session.turns = [];
+          
+          // Check if it already exists (from initial fetch)
+          const exists = this.session.turns.findIndex((t: any) => t.index === this.currentTurnBuffer.index);
+          if (exists >= 0) {
+             this.session.turns[exists] = { ...this.currentTurnBuffer };
+          } else {
+             this.session.turns.push({ ...this.currentTurnBuffer });
+          }
+        }
+        
+        // Start a new buffer
+        this.currentTurnBuffer = {
+          index: idx,
+          thinking: [],
+          action: "Thinking...",
+          screenshot: `screenshots/turn_${idx}_post.png`,
+          full_page: `screenshots/turn_${idx}_full.png`,
+        };
+        // Trigger a re-render
+        this.session = { ...this.session };
+      }
+    } else if (event.Type === "thinking" && this.currentTurnBuffer) {
+      this.currentTurnBuffer.thinking.push(event.Message);
+      this.session = { ...this.session }; // trigger render
+    } else if (event.Type === "action" && this.currentTurnBuffer) {
+      this.currentTurnBuffer.action = event.Message;
+      this.session = { ...this.session }; // trigger render
     }
   }
 
