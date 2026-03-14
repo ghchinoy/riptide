@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -36,7 +37,11 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		// Always log to session log file as well
 		if t == EventRaw && data != nil {
 			if b, err := json.Marshal(data); err == nil {
-				log.Printf("[%s] %s %s", t, msg, string(b))
+				s := string(b)
+				// Truncate base64 strings to prevent log bloat
+				re := regexp.MustCompile(`"data":\s*"[^"]{100,}"`)
+				s = re.ReplaceAllString(s, `"data": "<base64 truncated>"`)
+				log.Printf("[%s] %s %s", t, msg, s)
 			} else {
 				log.Printf("[%s] %s %+v", t, msg, data)
 			}
@@ -270,7 +275,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		for _, part := range cand.Content.Parts {
 			if part.FunctionCall != nil {
 				hasToolCalls = true
-				
+
 				// 1. Detect Hallucination before Execution
 				actionName := part.FunctionCall.Name
 				if actionName == "computer" {
@@ -282,16 +287,16 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				if !IsToolKnown(actionName) {
 					emit(EventHallucination, fmt.Sprintf("Hallucinated Tool: %s", actionName), part.FunctionCall)
 					log.Printf("Intercepted hallucinated tool call: %s", actionName)
-					
-					// We do not execute it. We must also drop the FunctionCall from the history 
+
+					// We do not execute it. We must also drop the FunctionCall from the history
 					// so Vertex AI doesn't reject the next request with a 400.
-					
-					// Instead of a FunctionResponse (which Vertex would validate and reject), 
+
+					// Instead of a FunctionResponse (which Vertex would validate and reject),
 					// we will inject a synthetic text prompt correcting the model.
-					
+
 					// Pop the hallucinated cand.Content from history (which we just appended)
 					history = history[:len(history)-1]
-					
+
 					// Append a correction message directly to history
 					correctionMsg := fmt.Sprintf("System Error: You attempted to use an invalid tool '%s'. Please only use tools explicitly provided in your configuration. Do not hallucinate tools like 'go_back', 'scroll_down', etc. Use the provided tools (e.g. 'computer' action='scroll_document' or 'navigate').", actionName)
 					history = append(history, &genai.Content{
@@ -300,7 +305,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 							{Text: correctionMsg},
 						},
 					})
-					
+
 					emit(EventLog, "Injected synthetic correction prompt for hallucinated tool", nil)
 					// Break out of the parts loop so we don't try to process this hallucination further
 					// The main loop will continue to the next turn and send the correction.
@@ -375,39 +380,34 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 					},
 				})
 
-								// Capture AXTree for this turn
+				// Capture AXTree for this turn
 
-								if useAXT {
+				if useAXT {
 
-									axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
+					axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
 
-									if err == nil {
+					if err == nil {
 
-										if b, err := json.Marshal(axTree); err == nil {
+						if b, err := json.Marshal(axTree); err == nil {
 
-											history = append(history, &genai.Content{
+							history = append(history, &genai.Content{
 
-												Role: "user",
+								Role: "user",
 
-												Parts: []*genai.Part{
+								Parts: []*genai.Part{
 
-													{
+									{
 
-														Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+										Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
+									},
+								},
+							})
 
-													},
+						}
 
-												},
+					}
 
-											})
-
-										}
-
-									}
-
-								}
-
-				
+				}
 
 			}
 		}
