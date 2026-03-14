@@ -72,6 +72,32 @@ func BroadcastEvent(sessionID string, payload []byte) {
 	}
 }
 
+// noDirFileSystem wraps http.FileSystem to prevent directory listings
+type noDirFileSystem struct {
+	fs http.FileSystem
+}
+
+func (nfs noDirFileSystem) Open(path string) (http.File, error) {
+	f, err := nfs.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if s.IsDir() {
+		// Do not allow directory listings. Return a mocked "not found" error
+		// so that the http.FileServer passes control to the NotFound handler.
+		f.Close()
+		return nil, os.ErrNotExist
+	}
+
+	return f, nil
+}
+
 // Start initializes and runs the session viewer web server.
 func (s *Server) Start() error {
 	utils.LoadConfig()
@@ -93,11 +119,14 @@ func (s *Server) Start() error {
 		r.Get("/sessions/{id}/stream", s.serveWs) // WebSocket endpoint
 
 		// Serve sessions content (logs, screenshots) under API
+		// We allow directory listings here if needed, or we can secure it.
 		r.Handle("/sessions/*", http.StripPrefix("/api/v1/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
 	})
 
 	// Serve sessions at root too for direct asset access if needed by frontend
-	r.Handle("/sessions/*", http.StripPrefix("/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
+	// Crucially, use noDirFileSystem so that requests for "/sessions/123/" (a directory) 
+	// fall through to the SPA NotFound handler instead of returning an HTML folder index.
+	r.Handle("/sessions/*", http.StripPrefix("/sessions/", http.FileServer(noDirFileSystem{http.Dir(sessionsBaseDir)})))
 	// Serve Static Assets
 	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(workDir, "frontend/dist/assets")))))
 
