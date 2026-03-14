@@ -45,6 +45,11 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		}
 	}
 
+	// ALWAYS emit "Session Finished." as the very last event before exiting.
+	// This guarantees downstream parsers (TUI, Web Viewer) know the run has terminated,
+	// regardless of whether it succeeded, hit max turns, or threw a fatal error.
+	defer emit(EventStatus, "Session Finished.", nil)
+
 	// 0. Setup Output
 	sessionPath := filepath.Join(sessionsDir, sessionID)
 	outputDir := filepath.Join(sessionPath, "screenshots")
