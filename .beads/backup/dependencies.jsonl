@@ -15,6 +15,8 @@
 {"created_at":"2026-03-12T08:19:24Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-mkq.5","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T08:19:40Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-mkq.6","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T08:19:30Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-pi8.1","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-14T00:07:57Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-pi8.3","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-14T00:08:02Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-pi8","issue_id":"riptide-pi8.4","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T00:03:44Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-b19","issue_id":"riptide-u1r","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T18:41:36Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-u1r","issue_id":"riptide-u1r.1","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T18:41:37Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-u1r","issue_id":"riptide-u1r.2","metadata":"{}","type":"parent-child"}
@@ -27,3 +29,7 @@
 {"created_at":"2026-03-12T18:55:38Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-utv","issue_id":"riptide-utv.6","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T19:00:00Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-utv","issue_id":"riptide-utv.7","metadata":"{}","type":"parent-child"}
 {"created_at":"2026-03-12T19:00:06Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-utv","issue_id":"riptide-utv.8","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-12T20:27:58Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-xas","issue_id":"riptide-xas.4","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-14T00:03:14Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-xas","issue_id":"riptide-xas.5","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-14T00:03:21Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-xas","issue_id":"riptide-xas.6","metadata":"{}","type":"parent-child"}
+{"created_at":"2026-03-14T00:03:21Z","created_by":"G. H. Chinoy","depends_on_id":"riptide-xas","issue_id":"riptide-xas.7","metadata":"{}","type":"parent-child"}
