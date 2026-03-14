@@ -154,25 +154,43 @@ export class SessionDetail extends LitElement {
     }
   }
 
+  @state() lightboxImage: string | null = null;
+  @state() showDebugPanel = false;
+
   render() {
     if (this.loading) return html`<div class="loading">Loading session ${this.location?.params?.id}...</div>`;
     if (!this.session) return html`
       <div class="error">
         Session not found or failed to load.
         <div style="color: red; font-weight: bold; margin: 10px 0;">${this.error}</div>
-        <pre style="text-align: left; background: #eee; padding: 10px; margin-top: 10px;">
-Debug Info:
-Location Params: ${JSON.stringify(this.location?.params, null, 2)}
-Session: ${JSON.stringify(this.session, null, 2)}
-        </pre>
       </div>`;
 
     return html`
       <div class="session-container">
         <div class="header">
-          <h2>Session ${this.session.id}</h2>
-          <p class="prompt"><strong>Prompt:</strong> ${this.session.prompt}</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <h2>Session ${this.session.id}</h2>
+              <p class="prompt"><strong>Prompt:</strong> ${this.session.prompt}</p>
+            </div>
+            <md-icon-button @click=${() => this.showDebugPanel = !this.showDebugPanel} title="Toggle Debug Logs">
+              <md-icon>code</md-icon>
+            </md-icon-button>
+          </div>
         </div>
+
+        ${this.showDebugPanel ? html`
+          <div class="debug-panel">
+            <h3>System Logs</h3>
+            <div class="log-container">
+              ${this.session.logs?.length ? this.session.logs.map((l: string) => html`<div class="log-line">${l}</div>`) : html`<div class="log-line empty">No system logs available.</div>`}
+            </div>
+            <h3>Raw Interactions (JSON)</h3>
+            <div class="log-container">
+              ${this.session.raw?.length ? this.session.raw.map((r: any) => html`<pre class="raw-json">${r.data}</pre>`) : html`<div class="log-line empty">No raw data available.</div>`}
+            </div>
+          </div>
+        ` : ''}
 
         <div class="turns">
           ${this.session.turns?.map((t: any) => html`
@@ -186,11 +204,11 @@ Session: ${JSON.stringify(this.session, null, 2)}
                   ${t.thinking?.map((thought: string) => html`<p class="thought">${thought}</p>`)}
                 </div>
                 <div class="visuals">
-                  <div class="screenshot-container">
+                  <div class="screenshot-container" @click=${() => this.lightboxImage = `${this.apiBase}/sessions/${this.session.id}/${t.screenshot}`}>
                     <img src="${this.apiBase}/sessions/${this.session.id}/${t.screenshot}" alt="Post-action screenshot">
                     <div class="label">Viewport</div>
                   </div>
-                  <div class="screenshot-container">
+                  <div class="screenshot-container" @click=${() => this.lightboxImage = `${this.apiBase}/sessions/${this.session.id}/${t.full_page}`}>
                     <img src="${this.apiBase}/sessions/${this.session.id}/${t.full_page}" alt="Full page screenshot" @error=${(e: any) => e.target.style.display='none'}>
                     <div class="label">Full Page</div>
                   </div>
@@ -200,6 +218,13 @@ Session: ${JSON.stringify(this.session, null, 2)}
           `)}
         </div>
       </div>
+
+      ${this.lightboxImage ? html`
+        <div class="lightbox" @click=${() => this.lightboxImage = null}>
+          <div class="lightbox-close"><md-icon>close</md-icon></div>
+          <img src=${this.lightboxImage} alt="Enlarged screenshot" @click=${(e: Event) => e.stopPropagation()}>
+        </div>
+      ` : ''}
     `;
   }
 
@@ -221,6 +246,29 @@ Session: ${JSON.stringify(this.session, null, 2)}
     .header { margin-bottom: 32px; border-bottom: 1px solid #e0e0e0; padding-bottom: 16px; }
     h2 { margin: 0; font-weight: 400; color: #1d1b20; }
     .prompt { color: #49454f; font-size: 0.9rem; line-height: 1.5; }
+    
+    .debug-panel {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 32px;
+    }
+    .debug-panel h3 { margin-top: 0; font-size: 1rem; color: #333; margin-bottom: 8px; }
+    .log-container {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px;
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+    }
+    .log-line { margin-bottom: 4px; }
+    .log-line.empty { color: #888; font-style: italic; }
+    .raw-json { margin: 0 0 12px 0; white-space: pre-wrap; word-wrap: break-word; color: #9cdcfe; border-bottom: 1px solid #333; padding-bottom: 8px; }
     
     .turns { display: flex; flex-direction: column; gap: 32px; }
     .turn-card {
@@ -252,7 +300,10 @@ Session: ${JSON.stringify(this.session, null, 2)}
       border-radius: 8px; 
       overflow: hidden;
       position: relative;
+      cursor: zoom-in;
+      transition: box-shadow 0.2s;
     }
+    .screenshot-container:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     img { width: 100%; display: block; object-fit: contain; }
     .label {
       position: absolute;
@@ -264,6 +315,42 @@ Session: ${JSON.stringify(this.session, null, 2)}
       border-radius: 4px;
       font-size: 0.7rem;
       text-transform: uppercase;
+      pointer-events: none;
     }
+    
+    /* Lightbox Styles */
+    .lightbox {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+      padding: 24px;
+    }
+    .lightbox img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      cursor: default;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      color: white;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      padding: 8px;
+      display: flex;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,0.3); }
   `;
 }
