@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -106,7 +105,7 @@ func (s *Server) Start() error {
 	r.Get("/sessions/*", func(w http.ResponseWriter, r *http.Request) {
 		rctx := chi.RouteContext(r.Context())
 		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
-		
+
 		// check if file exists and is not a dir
 		file := filepath.Join(sessionsBaseDir, chi.URLParam(r, "*"))
 		if info, err := os.Stat(file); err == nil && !info.IsDir() {
@@ -114,11 +113,11 @@ func (s *Server) Start() error {
 			fs.ServeHTTP(w, r)
 			return
 		}
-		
+
 		// If it's a directory (like a trailing slash URL) or doesn't exist, serve the SPA
 		serveSPA(w, r)
 	})
-	
+
 	// Serve Static Assets
 	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(workDir, "frontend/dist/assets")))))
 
@@ -131,7 +130,7 @@ func (s *Server) Start() error {
 		serveSPA(w, r)
 	})
 
-	log.Printf("Session Viewer backend listening on %s", s.port)
+	fmt.Printf("Session Viewer backend listening on %s\n", s.port)
 	return http.ListenAndServe(s.port, r)
 }
 
@@ -233,7 +232,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		if m := rawRe.FindStringSubmatch(line); len(m) > 2 {
 			title := strings.TrimSpace(m[1])
 			contentStr := strings.TrimSuffix(m[2], " <nil>")
-			
+
 			var parsedData interface{}
 			if err := json.Unmarshal([]byte(contentStr), &parsedData); err == nil {
 				// It's valid JSON
@@ -281,7 +280,7 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		turns = append(turns, *currentTurn)
 	}
 	session.Turns = turns
-	
+
 	// Add logs and raw to a wrapper or add them to the Session struct
 	// Let's add them to the JSON output by creating a custom response object just for this endpoint.
 	resp := struct {
@@ -294,7 +293,8 @@ func getSession(w http.ResponseWriter, r *http.Request) {
 		Raw:     sessionRaw,
 	}
 
-	log.Printf("Returning session %s with %d turns", session.ID, len(session.Turns))
+	// We can omit this log or make it a fmt.Printf to avoid polluting the agent's active log file
+	// fmt.Printf("Returning session %s with %d turns\n", session.ID, len(session.Turns))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
@@ -318,9 +318,9 @@ func peekMetadata(path string) (string, string) {
 				prompt = strings.TrimSuffix(m[1], " <nil>")
 			}
 		}
-		if strings.Contains(line, "Session Finished.") || 
-			strings.Contains(line, "Max Turns Reached.") || 
-			strings.Contains(line, "Goal Achieved.") || 
+		if strings.Contains(line, "Session Finished.") ||
+			strings.Contains(line, "Max Turns Reached.") ||
+			strings.Contains(line, "Goal Achieved.") ||
 			strings.Contains(line, "Fatal:") {
 			status = "finished"
 		}
@@ -353,7 +353,7 @@ func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
+		fmt.Printf("WebSocket upgrade failed: %v\n", err)
 		return
 	}
 

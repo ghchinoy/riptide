@@ -1,7 +1,7 @@
 package viewer
 
 import (
-	"log"
+	"fmt"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -47,7 +47,7 @@ func (h *Hub) Run() {
 			}
 			h.clients[client.sessionID][client] = true
 			h.clientsMu.Unlock()
-			log.Printf("WebSocket client connected to session %s", client.sessionID)
+			fmt.Printf("WebSocket client connected to session %s\n", client.sessionID)
 
 		case client := <-h.unregister:
 			h.clientsMu.Lock()
@@ -61,7 +61,7 @@ func (h *Hub) Run() {
 				}
 			}
 			h.clientsMu.Unlock()
-			log.Printf("WebSocket client disconnected from session %s", client.sessionID)
+			fmt.Printf("WebSocket client disconnected from session %s\n", client.sessionID)
 
 		case message := <-h.Broadcast:
 			h.clientsMu.RLock()
