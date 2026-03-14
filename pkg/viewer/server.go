@@ -72,32 +72,6 @@ func BroadcastEvent(sessionID string, payload []byte) {
 	}
 }
 
-// noDirFileSystem wraps http.FileSystem to prevent directory listings
-type noDirFileSystem struct {
-	fs http.FileSystem
-}
-
-func (nfs noDirFileSystem) Open(path string) (http.File, error) {
-	f, err := nfs.fs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	s, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	if s.IsDir() {
-		// Do not allow directory listings. Return a mocked "not found" error
-		// so that the http.FileServer passes control to the NotFound handler.
-		f.Close()
-		return nil, os.ErrNotExist
-	}
-
-	return f, nil
-}
-
 // Start initializes and runs the session viewer web server.
 func (s *Server) Start() error {
 	utils.LoadConfig()
@@ -112,6 +86,12 @@ func (s *Server) Start() error {
 
 	workDir, _ := os.Getwd()
 	sessionsBaseDir := filepath.Join(workDir, "sessions")
+	spaIndex := filepath.Join(workDir, "frontend/dist/index.html")
+
+	// Helper to serve the SPA index
+	serveSPA := func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, spaIndex)
+	}
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/sessions", listSessions)
@@ -119,24 +99,36 @@ func (s *Server) Start() error {
 		r.Get("/sessions/{id}/stream", s.serveWs) // WebSocket endpoint
 
 		// Serve sessions content (logs, screenshots) under API
-		// We allow directory listings here if needed, or we can secure it.
 		r.Handle("/sessions/*", http.StripPrefix("/api/v1/sessions/", http.FileServer(http.Dir(sessionsBaseDir))))
 	})
 
 	// Serve sessions at root too for direct asset access if needed by frontend
-	// Crucially, use noDirFileSystem so that requests for "/sessions/123/" (a directory) 
-	// fall through to the SPA NotFound handler instead of returning an HTML folder index.
-	r.Handle("/sessions/*", http.StripPrefix("/sessions/", http.FileServer(noDirFileSystem{http.Dir(sessionsBaseDir)})))
+	r.Get("/sessions/*", func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		
+		// check if file exists and is not a dir
+		file := filepath.Join(sessionsBaseDir, chi.URLParam(r, "*"))
+		if info, err := os.Stat(file); err == nil && !info.IsDir() {
+			fs := http.StripPrefix(pathPrefix, http.FileServer(http.Dir(sessionsBaseDir)))
+			fs.ServeHTTP(w, r)
+			return
+		}
+		
+		// If it's a directory (like a trailing slash URL) or doesn't exist, serve the SPA
+		serveSPA(w, r)
+	})
+	
 	// Serve Static Assets
 	r.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(workDir, "frontend/dist/assets")))))
 
-	// SPA Routing fallback
+	// SPA Routing fallback for everything else (like the root /)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api") {
 			http.NotFound(w, r)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(workDir, "frontend/dist/index.html"))
+		serveSPA(w, r)
 	})
 
 	log.Printf("Session Viewer backend listening on %s", s.port)
