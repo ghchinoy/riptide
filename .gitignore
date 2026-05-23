@@ -34,3 +34,6 @@ sources/
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key
+
+# OS-specific files
+.DS_Store
