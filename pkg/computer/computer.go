@@ -191,24 +191,15 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	})
 
 	// Capture initial AXTree
-
 	if useAXT {
-
 		axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
-
 		if err == nil {
-
 			if b, err := json.Marshal(axTree); err == nil {
-
 				history[0].Parts = append(history[0].Parts, &genai.Part{
-
 					Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
 				})
-
 			}
-
 		}
-
 	}
 
 	defer func() {
@@ -381,32 +372,20 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 				})
 
 				// Capture AXTree for this turn
-
 				if useAXT {
-
 					axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
-
 					if err == nil {
-
 						if b, err := json.Marshal(axTree); err == nil {
-
 							history = append(history, &genai.Content{
-
 								Role: "user",
-
 								Parts: []*genai.Part{
-
 									{
-
 										Text: fmt.Sprintf("Accessibility Tree (Semantic View):\n%s", string(b)),
 									},
 								},
 							})
-
 						}
-
 					}
-
 				}
 
 			}
