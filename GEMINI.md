@@ -6,20 +6,6 @@
     *   `pkg/computer`: Core agent logic (`Run`) and tool execution (`Execute`).
 *   **Testing:** `cmd/testserver` for a local HTML server to validate browser interactions without external dependencies.
 
-## Task Management (`bd`)
-We use the `bd` (Beads) tool for all issue tracking.
-
-*   **Prefix:** `riptide` (or `rt` contextually)
-*   **Workflow:**
-    1.  **Create:** `bd create "Task Name" --description "Details..."
-    2.  **Implement:** Code & Test.
-    3.  **Close:** `bd close <id>`
-*   **Changelog:**
-    To generate `CHANGELOG.md` from closed tasks:
-    ```bash
-    bd list --status closed --json | jq -r 'sort_by(.closed_at) | reverse | map(select(.closed_at != null)) | group_by(.closed_at[0:10]) | reverse | .[] | "## " + (.[0].closed_at[0:10]) + "\n" + (map("- " + .title + " (" + .id + ")") | join("\n")) + "\n"' > CHANGELOG.md
-    ```
-
 ## Go Conventions
 *   **GenAI SDK:** Use `google.golang.org/genai`.
     *   **Computer Use:** This model uses specific tool definitions (`ComputerUse`). Ensure `FunctionCall` handling is robust.

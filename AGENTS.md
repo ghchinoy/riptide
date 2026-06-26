@@ -1,36 +1,6 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
-
-## Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
-```
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started, `bd prime` for full workflow context. Run `bd sync` to sync with git after pushing.
 
 ## Troubleshooting & Interaction
 
@@ -67,12 +37,6 @@ When managing background processes (like the Session Viewer backend):
     *   **404s:** Mismatched API paths (`/sessions` vs `/api/v1/sessions`).
     *   **JS Errors:** "Circular structure to JSON" or "DefineForClassFields" errors (indicative of TS config mismatch).
 
-- Work is NOT complete until `git push` succeeds
-
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-
 ## Git & Remote Access
 
 *   **SSH is blocked in this environment.** `git push` via SSH will hang indefinitely. Always switch to HTTPS before pushing, then restore:
@@ -108,6 +72,13 @@ When managing background processes (like the Session Viewer backend):
 *   **Don't limit research to Google/Cloud docs.** For current AI/ML terminology and concepts, arXiv is often more up-to-date and precise. A search like `arxiv.org/search/?query=agent+harness+llm&searchtype=all` will surface the latest papers using terms as they are actually being defined in the field.
 *   **For genai model capability research**, the Google reference implementation repo (`github.com/google-gemini/computer-use-preview`) will often reflect the current recommended model name and patterns faster than documentation pages.
 
+
+## Changelog Generation
+
+To generate `CHANGELOG.md` from closed tasks:
+```bash
+bd list --status closed --json | jq -r 'sort_by(.closed_at) | reverse | map(select(.closed_at != null)) | group_by(.closed_at[0:10]) | reverse | .[] | "## " + (.[0].closed_at[0:10]) + "\n" + (map("- " + .title + " (" + .id + ")") | join("\n")) + "\n"' > CHANGELOG.md
+```
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker
