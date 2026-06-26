@@ -18,15 +18,19 @@ package computer
 type EventType string
 
 const (
-	EventStatus   EventType = "status"
-	EventLog      EventType = "log"
-	EventError    EventType = "error"
-	EventScreen   EventType = "screen"
-	EventAction   EventType = "action"
-	EventSafety   EventType = "safety"
-	EventThinking EventType = "thinking"
-	EventRaw      EventType = "raw"
+	EventStatus        EventType = "status"
+	EventLog           EventType = "log"
+	EventError         EventType = "error"
+	EventScreen        EventType = "screen"
+	EventAction        EventType = "action"
+	EventSafety        EventType = "safety"
+	EventThinking      EventType = "thinking"
+	EventRaw           EventType = "raw"
 	EventHallucination EventType = "hallucination"
+	// EventPromptInjection is emitted when Gemini 3.5 Flash's built-in
+	// prompt injection detection identifies malicious page content attempting
+	// to hijack the agent's instructions. The session is terminated automatically.
+	EventPromptInjection EventType = "prompt_injection"
 )
 
 // Event represents a single update from the computer loop.
