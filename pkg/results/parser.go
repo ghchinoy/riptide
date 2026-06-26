@@ -147,8 +147,17 @@ func ParseSessionLog(path string) (*SessionResult, error) {
 			res.Outcome = OutcomeGoalAchieved
 		case strings.Contains(line, "Max Turns Reached."):
 			res.Outcome = OutcomeMaxTurns
-		case strings.Contains(line, "User denied safety request"):
+		case strings.Contains(line, "User denied safety request"),
+			strings.Contains(line, "No SafetyHandler registered"):
 			res.Outcome = OutcomeSafety
+		case strings.Contains(line, "blockReason") && strings.Contains(line, "SAFETY"),
+			strings.Contains(line, "No candidates returned"):
+			// Prompt-level safety block: model returned 0 candidates.
+			// Only set if not already resolved to a more specific terminal state.
+			if res.Outcome == OutcomeUnknown {
+				res.Outcome = OutcomeSafety
+				res.SafetyFired = true
+			}
 		}
 	}
 
