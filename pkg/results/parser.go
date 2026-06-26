@@ -50,7 +50,16 @@ type SessionResult struct {
 	Duration       time.Duration `json:"duration_ms"`
 	InjectionFired bool          `json:"injection_fired"`
 	SafetyFired    bool          `json:"safety_fired"`
+	SafetyDecisions int          `json:"safety_decisions"`
 	ErrorMessage   string        `json:"error_message,omitempty"`
+
+	// Token usage aggregated across all turns. Populated from the
+	// "[log] Tokens:" events emitted by computer.go each turn.
+	PromptTokens     int `json:"prompt_tokens"`
+	CandidateTokens  int `json:"candidate_tokens"`
+	ThoughtTokens    int `json:"thought_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	CachedTokens     int `json:"cached_tokens"`
 }
 
 // Complete reports whether the session reached a definitive terminal state.
@@ -77,6 +86,7 @@ func ParseSessionLog(path string) (*SessionResult, error) {
 		errorRe      = regexp.MustCompile(`\[error\] (.+)`)
 		injectionRe  = regexp.MustCompile(`\[prompt_injection\]`)
 		safetyRe     = regexp.MustCompile(`\[safety\]`)
+		tokensRe     = regexp.MustCompile(`\[log\] Tokens: prompt=(\d+) candidates=(\d+) thoughts=(\d+) total=(\d+) cached=(\d+)`)
 	)
 
 	scanner := bufio.NewScanner(f)
@@ -106,6 +116,20 @@ func ParseSessionLog(path string) (*SessionResult, error) {
 		}
 		if safetyRe.MatchString(line) {
 			res.SafetyFired = true
+			res.SafetyDecisions++
+		}
+		if m := tokensRe.FindStringSubmatch(line); len(m) == 6 {
+			var p, c, th, tot, ca int
+			fmt.Sscanf(m[1], "%d", &p)
+			fmt.Sscanf(m[2], "%d", &c)
+			fmt.Sscanf(m[3], "%d", &th)
+			fmt.Sscanf(m[4], "%d", &tot)
+			fmt.Sscanf(m[5], "%d", &ca)
+			res.PromptTokens += p
+			res.CandidateTokens += c
+			res.ThoughtTokens += th
+			res.TotalTokens += tot
+			res.CachedTokens += ca
 		}
 		if m := urlRe.FindStringSubmatch(line); len(m) > 1 {
 			res.FinalURL = m[1]

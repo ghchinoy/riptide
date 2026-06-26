@@ -46,7 +46,7 @@ declare -a CONFIGS=(
 )
 
 RESULTS_FILE=/tmp/tier2_results.tsv
-echo "config	task	seed	outcome	turns	hallucinations	session_id" > "$RESULTS_FILE"
+echo "config	task	seed	outcome	turns	hallucinations	total_tokens	session_id" > "$RESULTS_FILE"
 
 run_one() {
   local config_name="$1"
@@ -59,7 +59,7 @@ run_one() {
   echo "  Running $config_name/$task_id/seed$seed..."
 
   if [ "$DRY_RUN" = true ]; then
-    echo "$config_name	$task_id	$seed	dry_run	0	0	dry-run-session" >> "$RESULTS_FILE"
+    echo "$config_name	$task_id	$seed	dry_run	0	0	0	dry-run-session" >> "$RESULTS_FILE"
     return
   fi
 
@@ -81,7 +81,9 @@ run_one() {
     outcome=$(grep -oE "Goal Achieved\.|Max Turns Reached\.|prompt_injection|error" "$log" 2>/dev/null | head -1 | tr -d '.' || echo "unknown")
     turns=$(grep -oE "Turn [0-9]+/" "$log" 2>/dev/null | tail -1 | grep -oE "[0-9]+" | head -1 || echo "0")
     hallucinations=$(grep -c "\[hallucination\]" "$log" 2>/dev/null || echo "0")
-    echo "$config_name	$task_id	$seed	$outcome	$turns	$hallucinations	$session_id" >> "$RESULTS_FILE"
+    # Sum total tokens across all turns from the [log] Tokens: events.
+    total_tokens=$(grep -oE "total=[0-9]+" "$log" 2>/dev/null | grep -oE "[0-9]+" | awk '{s+=$1} END {print s+0}')
+    echo "$config_name	$task_id	$seed	$outcome	$turns	$hallucinations	$total_tokens	$session_id" >> "$RESULTS_FILE"
   fi
 }
 
@@ -122,11 +124,12 @@ with open(results_file) as f:
     header = f.readline()
     for line in f:
         parts = line.strip().split("\t")
-        if len(parts) >= 6:
+        if len(parts) >= 7:
             rows.append({
                 "config": parts[0], "task": parts[1], "seed": parts[2],
                 "outcome": parts[3], "turns": int(parts[4] or 0),
                 "hallucinations": int(parts[5] or 0),
+                "tokens": int(parts[6] or 0),
             })
 
 if not rows:
@@ -175,13 +178,33 @@ for task in tasks:
     print("| " + " | ".join(row_parts) + " |")
 
 print("")
+print("## Token Usage (avg total tokens per task)")
+print("")
+print(f"| Task | {' | '.join(configs)} |")
+print(f"|------|{'|'.join(['---']*len(configs))}|")
+for task in tasks:
+    row_parts = [task]
+    for config in configs:
+        task_rows = [r for r in rows if r["task"] == task and r["config"] == config]
+        if not task_rows:
+            row_parts.append("–")
+        else:
+            avg_tokens = sum(r["tokens"] for r in task_rows) / len(task_rows)
+            row_parts.append(f"{avg_tokens:,.0f}")
+    print("| " + " | ".join(row_parts) + " |")
+
+print("")
 print("## Summary")
 for config in configs:
     config_rows = [r for r in rows if r["config"] == config]
     n_complete = sum(1 for r in config_rows if "Goal Achieved" in r["outcome"])
     avg_turns = sum(r["turns"] for r in config_rows) / max(len(config_rows), 1)
     total_hallus = sum(r["hallucinations"] for r in config_rows)
-    print(f"- **{config}**: {n_complete}/{len(config_rows)} complete, {avg_turns:.1f} turns avg, {total_hallus} hallucinations total")
+    avg_tokens = sum(r["tokens"] for r in config_rows) / max(len(config_rows), 1)
+    total_tokens = sum(r["tokens"] for r in config_rows)
+    print(f"- **{config}**: {n_complete}/{len(config_rows)} complete, "
+          f"{avg_turns:.1f} turns avg, {avg_tokens:,.0f} tokens/run avg, "
+          f"{total_tokens:,} tokens total, {total_hallus} hallucinations")
 PYEOF
 
 echo ""

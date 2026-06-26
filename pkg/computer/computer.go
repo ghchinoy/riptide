@@ -313,6 +313,17 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		// Emit raw response for TUI/Debugging
 		emit(EventRaw, "Model Response", resp)
 
+		// Log token usage for this turn so cost/efficiency can be measured
+		// post-hoc by pkg/results. Emitted in a stable, parseable format:
+		//   [log] Tokens: prompt=N candidates=N thoughts=N total=N cached=N
+		if um := resp.UsageMetadata; um != nil {
+			emit(EventLog, fmt.Sprintf(
+				"Tokens: prompt=%d candidates=%d thoughts=%d total=%d cached=%d",
+				um.PromptTokenCount, um.CandidatesTokenCount,
+				um.ThoughtsTokenCount, um.TotalTokenCount, um.CachedContentTokenCount,
+			), nil)
+		}
+
 		if len(resp.Candidates) == 0 {
 			emit(EventLog, fmt.Sprintf("No candidates returned. Response: %+v", resp), nil)
 			break

@@ -159,6 +159,67 @@ func TestParseSessionLog_CompleteReportsCorrectly(t *testing.T) {
 	}
 }
 
+func TestParseSessionLog_TokenUsage(t *testing.T) {
+	log := `2026/06/26 10:00:00 [log] Prompt: search task <nil>
+2026/06/26 10:00:01 [status] Turn 1/10: Sending request... <nil>
+2026/06/26 10:00:02 [log] Tokens: prompt=1500 candidates=200 thoughts=300 total=2000 cached=0 <nil>
+2026/06/26 10:00:03 [status] Turn 2/10: Sending request... <nil>
+2026/06/26 10:00:04 [log] Tokens: prompt=1800 candidates=150 thoughts=250 total=2200 cached=500 <nil>
+2026/06/26 10:00:05 [status] Goal Achieved. <nil>`
+
+	r, err := ParseSessionLog(writeLog(t, log))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Tokens accumulate across both turns.
+	if r.PromptTokens != 3300 {
+		t.Errorf("PromptTokens = %d; want 3300", r.PromptTokens)
+	}
+	if r.CandidateTokens != 350 {
+		t.Errorf("CandidateTokens = %d; want 350", r.CandidateTokens)
+	}
+	if r.ThoughtTokens != 550 {
+		t.Errorf("ThoughtTokens = %d; want 550", r.ThoughtTokens)
+	}
+	if r.TotalTokens != 4200 {
+		t.Errorf("TotalTokens = %d; want 4200", r.TotalTokens)
+	}
+	if r.CachedTokens != 500 {
+		t.Errorf("CachedTokens = %d; want 500", r.CachedTokens)
+	}
+}
+
+func TestParseSessionLog_SafetyDecisionCount(t *testing.T) {
+	log := `2026/06/26 10:00:00 [log] Prompt: risky task <nil>
+2026/06/26 10:00:01 [safety] Safety Decision Required <nil>
+2026/06/26 10:00:02 [safety] Safety Decision Required <nil>
+2026/06/26 10:00:03 [status] Goal Achieved. <nil>`
+
+	r, err := ParseSessionLog(writeLog(t, log))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.SafetyDecisions != 2 {
+		t.Errorf("SafetyDecisions = %d; want 2", r.SafetyDecisions)
+	}
+	if !r.SafetyFired {
+		t.Error("SafetyFired should be true")
+	}
+}
+
+func TestParseSessionLog_NoTokensIsZero(t *testing.T) {
+	log := `2026/06/26 10:00:00 [log] Prompt: legacy session without token logging <nil>
+2026/06/26 10:00:01 [status] Goal Achieved. <nil>`
+
+	r, err := ParseSessionLog(writeLog(t, log))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.TotalTokens != 0 {
+		t.Errorf("TotalTokens = %d; want 0 for session without token logs", r.TotalTokens)
+	}
+}
+
 func TestParseSessionDir(t *testing.T) {
 	base := t.TempDir()
 
