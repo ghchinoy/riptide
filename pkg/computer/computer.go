@@ -395,17 +395,23 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 					log.Printf("Execute error: %v", err)
 				}
 
-				// Handle Safety Interaction if present
+				// Handle Safety Interaction if present.
+				// Per Gemini Computer Use Terms of Service, require_confirmation
+				// decisions from the model's safety system MUST involve a human.
+				// Auto-approval when no SafetyHandler is registered is a TOS
+				// violation — the correct behaviour is to terminate the session.
 				if safety, ok := part.FunctionCall.Args["safety_decision"].(map[string]interface{}); ok {
 					explanation, _ := safety["explanation"].(string)
 					emit(EventSafety, "Safety Decision Required", explanation)
 
-					approved := true
-					if safetyHandler != nil {
-						approved = safetyHandler(explanation)
+					if safetyHandler == nil {
+						// No human-in-the-loop handler registered. Terminating is the
+						// only TOS-compliant action in headless / unattended mode.
+						emit(EventStatus, "No SafetyHandler registered — cannot auto-approve require_confirmation. Terminating.", nil)
+						return nil
 					}
 
-					if !approved {
+					if !safetyHandler(explanation) {
 						emit(EventStatus, "User denied safety request. Terminating.", nil)
 						return nil // Terminate loop
 					}
