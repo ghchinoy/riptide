@@ -94,7 +94,9 @@ func initViper() {
 	viper.BindEnv("google.location", "GOOGLE_CLOUD_LOCATION") //nolint:errcheck
 
 	// Defaults.
-	viper.SetDefault("google.location", "us-central1")
+	// Gemini 3.5 Flash computer use is served from the 'global' location.
+	// us-central1 and other regional endpoints return NOT_FOUND for this model.
+	viper.SetDefault("google.location", "global")
 	viper.SetDefault("session.max_turns", 10)
 	viper.SetDefault("session.max_screenshots", 3)
 	viper.SetDefault("session.axt", true)

@@ -71,7 +71,7 @@ var configInitCmd = &cobra.Command{
 # You can also set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars.
 google:
   project: ""
-  location: "us-central1"
+  location: "global"  # 3.5 Flash computer use is only served from 'global'
 
 # Model settings
 model:

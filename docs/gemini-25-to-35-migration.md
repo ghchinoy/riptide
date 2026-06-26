@@ -28,6 +28,23 @@ const ModelName = "gemini-3.5-flash"
 
 ---
 
+## 1.5. Serving Location (Gotcha)
+
+**Gemini 3.5 Flash computer use is served from the `global` location only.**
+
+Regional endpoints such as `us-central1` return:
+```
+Error 404: Publisher model `.../locations/us-central1/.../gemini-3.5-flash`
+was not found or your project does not have access to it.
+```
+
+This is a behavioural change worth calling out — the 2.5 preview was available
+in regional endpoints. Set `GOOGLE_CLOUD_LOCATION=global` (Riptide defaults to
+`global` for this reason). The reference Colab notebook also uses
+`LOCATION = "global"`.
+
+---
+
 ## 2. SDK Version
 
 | Before | After |
