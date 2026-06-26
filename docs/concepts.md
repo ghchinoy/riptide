@@ -1,17 +1,34 @@
 # Riptide: Architectural Concepts
 
-This document outlines the technical architecture of **Riptide**. It defines the core components and their responsibilities in bridging **Gemini 3.5 Flash** (with built-in computer use) and browser-based automation via `chromedp`.
+## What Is an Agent Harness?
 
-## Core Component Architecture
+Recent literature (Kim et al. 2026; Guo et al. 2026; Zheng et al. 2026) has converged on the term **agent harness** to describe the software scaffolding that sits around a foundation model in a deployed agent system. The harness is distinct from the model itself: it determines which tools the model can call, how observations are assembled and formatted, how context is managed across turns, how actions are executed in the environment, and how safety policies are enforced.
+
+Concretely, a harness decomposes into six coupled runtime responsibilities:
+
+| Responsibility | What it does |
+| :--- | :--- |
+| **Observation** | Assembles the per-turn input — screenshots, accessibility trees, DOM state |
+| **Context** | Manages what the model sees: history length, pruning, token budget |
+| **Control** | Drives the loop — when to call the model, when to stop, what to do on errors |
+| **Action** | Translates model output into real environment effects |
+| **State** | Maintains environment state between turns — cookies, URL, session identity |
+| **Verification** | Checks that actions had the expected effect before the next turn |
+
+**Riptide is a Go implementation of this pattern for Gemini 3.5 Flash's built-in browser computer use tool.**
+
+## Riptide Component Map
 
 The framework is structured as a layered system where high-level visual intent is translated into low-level programmatic execution.
 
-| Component | Implementation | Responsibility |
+| Harness Responsibility | Riptide Component | Implementation |
 | :--- | :--- | :--- |
-| **Action Executor** | `pkg/computer/executor.go` | **The Physical Layer.** Translates normalized coordinates (0-1000) and abstract actions into Chrome DevTools Protocol (CDP) commands. |
-| **Orchestration Loop** | `pkg/computer/computer.go` | **The Control Plane.** Manages the "Observe-Reason-Act" cycle, maintains conversation history, and handles model communication. |
-| **Augmented Skills** | Custom Go Functions | **Deterministic Extensions.** Provides high-reliability capabilities (e.g., direct DOM extraction) via GenAI Function Calling. |
-| **State & Identity** | `chromedp` Context + Storage | **Persistence Management.** Manages cookies, local storage, and session state to maintain identity across interactions. |
+| **Observation** | Screenshot capture + AXTree injection | `chromedp.CaptureScreenshot`, `handleGetAccessibilityTree` |
+| **Context** | Screenshot pruning, history management | `pruneOldScreenshots` in `pkg/computer/computer.go` |
+| **Control** | Observe-Reason-Act loop | `computer.Run` in `pkg/computer/computer.go` |
+| **Action** | CDP command dispatch | `pkg/computer/executor.go`, `tools_standard.go` |
+| **State** | Browser context, session identity | `chromedp` allocator context |
+| **Verification** | Post-action screenshot, DOM log, tool guard | `capturePostActionScreenshot`, `IsToolKnown` |
 
 ## Technical Deep Dive
 

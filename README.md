@@ -1,14 +1,16 @@
-# Riptide: The Gemini Computer Use Framework for Go
+# Riptide: A Gemini 3.5 Flash Agent Harness in Go
 
-*A foundational framework for building AI agents that see, reason, and interact with the web.*
+*The scaffolding that connects Gemini 3.5 Flash's built-in computer use to a real browser — so agents can see, reason, and act on the web.*
 
-![System Architecture](docs/interaction_infographic_v2.webp)
+![System Architecture](docs/interaction_infographic_v3.webp)
 
 ## Overview
 
-**Riptide** is a robust reference implementation and framework for **Gemini 3.5 Flash** with its built-in computer use tool. Built in Go, it bridges the gap between Generative AI and the browser, allowing you to build agents that can navigate websites, interact with dynamic content, and process visual information just like a human user.
+**Riptide** is a Go implementation of an **agent harness** for **Gemini 3.5 Flash** with its built-in computer use tool.
 
-While usable out-of-the-box as a general-purpose assistant, it is designed to be the **basis for specialized tools**:
+An agent harness is the software scaffolding around a foundation model: it determines which tools are exposed to the model, manages the observation–reason–act loop, handles context and state across turns, executes actions in the environment, and enforces safety policies. Riptide does all of this specifically for browser-based computer use — bridging Gemini's vision and reasoning to a real headless Chrome instance via `chromedp`.
+
+While usable out-of-the-box as a general-purpose web agent, it is designed to be the **basis for specialized harnesses**:
 *   **Visual QA Testers:** Agents that explore web apps and report visual bugs.
 *   **Smart Scrapers:** Extract data from complex, Single-Page Applications (SPAs) where traditional scrapers fail.
 *   **Workflow Automation:** Automate repetitive admin tasks, form filling, or "click-ops" workflows.
@@ -16,12 +18,12 @@ While usable out-of-the-box as a general-purpose assistant, it is designed to be
 
 ## How It Works
 
-The framework implements a continuous **Observe-Reason-Act** loop:
+The harness implements a continuous **Observe-Reason-Act** loop. Each turn, the harness is responsible for assembling the observation (screenshot + accessibility tree), managing context (history pruning), dispatching the model call, executing the returned action, and deciding when to stop.
 
-1.  **Observe:** `chromedp` (Headless Chrome) renders the page and captures a high-resolution screenshot.
-2.  **Reason:** **Gemini 3.5 Flash (Vertex AI)** analyzes the screenshot and conversation history to decide the next step (e.g., "I need to click the search bar"). Internal chain-of-thought reasoning (ThinkingConfig) improves multi-step accuracy on complex tasks.
-3.  **Act:** The `Executor` translates the model's intent into low-level browser events (`MouseClickXY`, `KeyEvent`, `Scroll`).
-4.  **Loop:** The result is fed back into the model, allowing for error correction and complex multi-step workflows.
+1.  **Observe:** `chromedp` (Headless Chrome) renders the page and captures a screenshot. The Chrome Accessibility Tree is injected alongside it for semantic grounding.
+2.  **Reason:** **Gemini 3.5 Flash (Vertex AI)** analyzes the observation with a `SystemInstruction`-defined agent persona. Internal chain-of-thought reasoning (`ThinkingConfig`, 8 192-token budget) improves multi-step planning on complex tasks.
+3.  **Act:** The `Executor` translates the model's `FunctionCall` into low-level browser events (`MouseClickXY`, `KeyEvent`, `Scroll`), with heuristics like Euclidean Aim Assist to compensate for coordinate imprecision.
+4.  **Loop:** The action result and a fresh screenshot are returned to the model as a `FunctionResponse`, driving the next turn. The harness prunes old screenshots to stay within the context window and auto-terminates on prompt injection detection.
 
 ## Prerequisites
 
@@ -146,17 +148,20 @@ All run data is organized by **Session UUID** in the configured sessions directo
 
 ## Architecture
 
-The system follows a Client-Server-Model pattern:
-*   **Client:** The Go application managing the state loop.
-*   **Server:** The Browser instance (managed via `chromedp`).
-*   **Model:** Vertex AI (Gemini 3.5 Flash with built-in computer use tool).
+Riptide is structured around the six runtime responsibilities of an agent harness:
 
-**Core Packages:**
-*   `google.golang.org/genai`: The official Go SDK for Gemini.
+| Harness Responsibility | Riptide Implementation |
+| :--- | :--- |
+| **Observation** | `chromedp.CaptureScreenshot` + Accessibility Tree injection |
+| **Context** | Sliding screenshot window (`pruneOldScreenshots`), full text history retained |
+| **Control** | `computer.Run` loop — turn limit, hallucination interception, injection detection |
+| **Action** | `Executor` — coordinate denormalization, Aim Assist, CDP dispatch |
+| **State** | `chromedp` browser context — cookies, local storage, session persistence |
+| **Verification** | Post-action screenshot, DOM content log, `IsToolKnown` guard |
+
+**Core dependencies:**
+*   `google.golang.org/genai` v1.62.0: Official Go SDK for Gemini (Vertex AI backend).
 *   `github.com/chromedp/chromedp`: High-performance Chrome DevTools Protocol client.
-
-**Driver Augmentation:**
-To compensate for AI inaccuracy, the Executor employs heuristics like **Euclidean Aim Assist** and **Smart JS Focus** to "snap" clicks to the nearest interactive element.
 
 ## Documentation
 *   [Architectural Concepts](docs/concepts.md): Deep dive into the "Browser OS" model.
