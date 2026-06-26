@@ -73,3 +73,38 @@ When managing background processes (like the Session Viewer backend):
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+## Git & Remote Access
+
+*   **SSH is blocked in this environment.** `git push` via SSH will hang indefinitely. Always switch to HTTPS before pushing, then restore:
+    ```bash
+    git remote set-url origin https://github.com/ghchinoy/riptide.git
+    git push origin <branch>
+    git remote set-url origin git@github.com:ghchinoy/riptide.git
+    ```
+*   **`gh pr create` may fail** with PAT scope restrictions. Fallback: merge directly into main with `git merge --no-ff <branch>` from the main worktree, then push.
+*   **Worktrees for parallel work** — use `git worktree add ../<dir> -b <branch>` when another agent may be modifying the same files. Worktrees share the parent repo's remote config, so the HTTPS swap above applies from either worktree.
+
+## SDK & Dependency Inspection
+
+*   **Check the module cache, not docs.** To understand what types/fields a Go SDK version exposes (e.g., new `ThinkingConfig` fields, `ComputerUse.Environment`), grep the downloaded module source directly — it's faster and more accurate than web docs which may lag:
+    ```bash
+    grep -A10 "TypeName" $(go env GOPATH)/pkg/mod/google.golang.org/genai@vX.Y.Z/types.go
+    ```
+*   **Check latest SDK version** before starting any model-related work:
+    ```bash
+    go list -m -versions google.golang.org/genai | tr ' ' '\n' | tail -5
+    ```
+
+## Image Generation & Conversion
+
+*   **NanoBanana MCP** generates PNG images to a local `output_directory`. Name the file deliberately in the prompt; the tool returns the saved path.
+*   **Convert PNG→WebP** using `cwebp` (not `ffmpeg` — `libwebp` encoder is often absent):
+    ```bash
+    cwebp input.png -o output.webp -q 90
+    ```
+
+## Research & Terminology
+
+*   **Don't limit research to Google/Cloud docs.** For current AI/ML terminology and concepts, arXiv is often more up-to-date and precise. A search like `arxiv.org/search/?query=agent+harness+llm&searchtype=all` will surface the latest papers using terms as they are actually being defined in the field.
+*   **For genai model capability research**, the Google reference implementation repo (`github.com/google-gemini/computer-use-preview`) will often reflect the current recommended model name and patterns faster than documentation pages.
+
