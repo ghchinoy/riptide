@@ -28,20 +28,27 @@ const ModelName = "gemini-3.5-flash"
 
 ---
 
-## 1.5. Serving Location (Gotcha)
+## 1.5. Serving Location
 
-**Gemini 3.5 Flash computer use is served from the `global` location only.**
+**Gemini 3.5 Flash is available on three endpoint tiers**, each with a different
+hostname pattern:
 
-Regional endpoints such as `us-central1` return:
-```
-Error 404: Publisher model `.../locations/us-central1/.../gemini-3.5-flash`
-was not found or your project does not have access to it.
-```
+| Location value | Tier | Hostname |
+|---|---|---|
+| `global` | Global (highest availability) | `aiplatform.googleapis.com` |
+| `us` | US multi-region (data residency) | `aiplatform.us.rep.googleapis.com` |
+| `eu` | EU multi-region (data residency) | `aiplatform.eu.rep.googleapis.com` |
+| `us-central1`, `us-east4`, etc. | Single region | `{region}-aiplatform.googleapis.com` |
 
-This is a behavioural change worth calling out — the 2.5 preview was available
-in regional endpoints. Set `GOOGLE_CLOUD_LOCATION=global` (Riptide defaults to
-`global` for this reason). The reference Colab notebook also uses
-`LOCATION = "global"`.
+The genai Go SDK routes to the correct hostname automatically when you set
+`Location` in `genai.ClientConfig`. **Use `global` for highest availability and
+lowest latency.** Use `us` or `eu` when you need jurisdictional data residency
+guarantees. Individual regions work but offer no availability advantage for
+this model.
+
+The 2.5 preview model (`gemini-2.5-computer-use-preview-10-2025`) was
+regional-only; `gemini-3.5-flash` is available everywhere. Riptide defaults
+to `global`, matching the reference Colab notebook (`LOCATION = "global"`).
 
 ---
 
