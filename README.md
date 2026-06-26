@@ -6,7 +6,7 @@
 
 ## Overview
 
-**Riptide** is a robust reference implementation and framework for the **Gemini 2.5 Computer Use** model. Built in Go, it bridges the gap between Generative AI and the browser, allowing you to build agents that can navigate websites, interact with dynamic content, and process visual information just like a human user.
+**Riptide** is a robust reference implementation and framework for **Gemini 3.5 Flash** with its built-in computer use tool. Built in Go, it bridges the gap between Generative AI and the browser, allowing you to build agents that can navigate websites, interact with dynamic content, and process visual information just like a human user.
 
 While usable out-of-the-box as a general-purpose assistant, it is designed to be the **basis for specialized tools**:
 *   **Visual QA Testers:** Agents that explore web apps and report visual bugs.
@@ -19,7 +19,7 @@ While usable out-of-the-box as a general-purpose assistant, it is designed to be
 The framework implements a continuous **Observe-Reason-Act** loop:
 
 1.  **Observe:** `chromedp` (Headless Chrome) renders the page and captures a high-resolution screenshot.
-2.  **Reason:** **Gemini 2.5 (Vertex AI)** analyzes the screenshot and conversation history to decide the next step (e.g., "I need to click the search bar").
+2.  **Reason:** **Gemini 3.5 Flash (Vertex AI)** analyzes the screenshot and conversation history to decide the next step (e.g., "I need to click the search bar"). Internal chain-of-thought reasoning (ThinkingConfig) improves multi-step accuracy on complex tasks.
 3.  **Act:** The `Executor` translates the model's intent into low-level browser events (`MouseClickXY`, `KeyEvent`, `Scroll`).
 4.  **Loop:** The result is fed back into the model, allowing for error correction and complex multi-step workflows.
 
@@ -27,7 +27,7 @@ The framework implements a continuous **Observe-Reason-Act** loop:
 
 *   **Go 1.25+**
 *   **Google Cloud Project** with Vertex AI API enabled.
-*   **Gemini 2.5 Computer Use Model** access (allowlisted or public preview).
+*   **Gemini 3.5 Flash** access via Vertex AI (generally available; no allowlist required).
 *   **Chrome/Chromium** installed (for `chromedp`).
 *   **FFmpeg** (optional, for generating session GIFs).
 
@@ -132,7 +132,7 @@ See [Test Scenarios](docs/test_scenarios.md) for details.
 
 This repository is structured to be extended.
 
-*   **`pkg/computer/computer.go`**: The "Brain". Modify this to change the prompt engineering, history management, or add system instructions.
+*   **`pkg/computer/computer.go`**: The "Brain". Controls prompt engineering, system instructions, ThinkingConfig, history management, and the prompt injection auto-detection logic.
 *   **`pkg/computer/executor.go`**: The "Hands". Extend this to support custom tools (e.g., `extract_data`, `save_file`) that the model can call.
 *   **`main.go`**: The "Interface". Wrap this logic into a CLI, HTTP API, or gRPC service for your specific use case.
 
@@ -149,7 +149,7 @@ All run data is organized by **Session UUID** in the configured sessions directo
 The system follows a Client-Server-Model pattern:
 *   **Client:** The Go application managing the state loop.
 *   **Server:** The Browser instance (managed via `chromedp`).
-*   **Model:** Vertex AI (Gemini 2.5).
+*   **Model:** Vertex AI (Gemini 3.5 Flash with built-in computer use tool).
 
 **Core Packages:**
 *   `google.golang.org/genai`: The official Go SDK for Gemini.

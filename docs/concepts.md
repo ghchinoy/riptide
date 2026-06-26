@@ -1,6 +1,6 @@
 # Riptide: Architectural Concepts
 
-This document outlines the technical architecture of **Riptide**. It defines the core components and their responsibilities in bridging Generative AI with browser-based automation.
+This document outlines the technical architecture of **Riptide**. It defines the core components and their responsibilities in bridging **Gemini 3.5 Flash** (with built-in computer use) and browser-based automation via `chromedp`.
 
 ## Core Component Architecture
 
@@ -31,9 +31,10 @@ The Executor is the bridge between the model's visual interpretation and the bro
 ### 2. Orchestration & Loop Management
 The Orchestration layer manages the lifecycle of a session.
 *   **State Observation:** Captures visual state (Screenshots) and structural state (DOM/Accessibility Tree).
-    *   **Accessibility Tree (AXTree) Injection:** A future enhancement where a simplified, textual representation of the browser's accessibility tree is provided to the model. This allows the model to "read" the structure and values of interactive elements (like slider percentages or button labels) directly, complementing visual analysis and reducing errors from visual ambiguity.
+    *   **Accessibility Tree (AXTree) Injection:** A simplified, textual representation of the browser's accessibility tree is injected alongside every screenshot. This allows the model to "read" the structure and values of interactive elements (like slider percentages or button labels) directly, complementing visual analysis and reducing errors from visual ambiguity.
 *   **Context Pruning:** To maintain efficiency within the model's token limit, the loop manages a sliding window of recent screenshots, removing older visual data while retaining the text-based reasoning history.
 *   **Safety Interception:** Intercepts `safety_decision` markers from the model, enabling automated acknowledgement or human-in-the-loop verification for sensitive actions.
+*   **Prompt Injection Auto-Detection:** Gemini 3.5 Flash's built-in adversarial training (`EnablePromptInjectionDetection`) detects when page content attempts to hijack the agent's instructions. When triggered, the model stops with a safety `FinishReason` and Riptide terminates the session automatically, emitting an `EventPromptInjection` event.
 
 ### 3. Augmented Skills (The Hybrid Schema)
 While the agent can navigate visually using the native `genai.ComputerUse` tool, certain tasks are better handled programmatically. Riptide classifies its tools into four categories to optimize both model performance and developer observability. We inject these custom capabilities alongside the native tools using a **Hybrid Tool Schema**.
