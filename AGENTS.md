@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started, `bd prime` for full workflow context. Run `bd sync` to sync with git after pushing.
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started, `bd prime` for full workflow context.
 
 ## Troubleshooting & Interaction
 
