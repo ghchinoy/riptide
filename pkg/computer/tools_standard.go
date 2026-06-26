@@ -25,56 +25,100 @@ import (
 )
 
 func init() {
-	// Register Default Tools
+	// ── Click family ────────────────────────────────────────────────────────────
+	// 2.5 names: click_at, left_click, mouse_click
+	// 3.5 names: click, double_click, triple_click, middle_click, right_click
 	RegisterTool("mouse_click", handleMouseClick)
 	RegisterTool("left_click", handleMouseClick)
-	RegisterTool("click", handleMouseClick)
-	RegisterTool("click_at", handleMouseClick)
+	RegisterTool("click", handleMouseClick)    // 3.5
+	RegisterTool("click_at", handleMouseClick) // 2.5
 
 	RegisterTool("right_click", handleRightClick)
 	RegisterTool("middle_click", handleMiddleClick)
 	RegisterTool("double_click", handleDoubleClick)
+	RegisterTool("triple_click", handleTripleClick) // 3.5 new
+
+	// ── Mouse movement ──────────────────────────────────────────────────────────
+	// 2.5 names: mouse_move, hover_at
+	// 3.5 names: move
 	RegisterTool("mouse_move", handleMouseMove)
+	RegisterTool("move", handleMouseMove) // 3.5
 	RegisterTool("cursor_position", handleCursorPosition)
 
-	RegisterTool("type", handleType)
-	RegisterTool("input_text", handleType)
-	RegisterTool("type_text_at", handleType)
+	// ── Mouse button press/release (3.5 new) ───────────────────────────────────
+	RegisterTool("mouse_down", handleMouseDown) // 3.5
+	RegisterTool("mouse_up", handleMouseUp)     // 3.5
 
+	// ── Text input ──────────────────────────────────────────────────────────────
+	// 2.5 names: type_text_at, input_text
+	// 3.5 names: type (no coords — uses active element)
+	RegisterTool("type", handleType)          // 3.5 (also handles 2.5 with x/y)
+	RegisterTool("input_text", handleType)    // 2.5
+	RegisterTool("type_text_at", handleType)  // 2.5
+
+	// ── Keyboard ────────────────────────────────────────────────────────────────
+	// 2.5 names: key, key_combination
+	// 3.5 names: press_key, hotkey, key_down, key_up
 	RegisterTool("key", handleKey)
-	RegisterTool("press_key", handleKey)
-	RegisterTool("key_combination", handleKey)
+	RegisterTool("press_key", handleKey)         // 3.5 (single key)
+	RegisterTool("key_combination", handleKey)   // 2.5
+	RegisterTool("hotkey", handleKey)            // 3.5 (modifier combos e.g. "ctrl+c")
+	RegisterTool("key_down", handleKeyDown)      // 3.5 new (press and hold)
+	RegisterTool("key_up", handleKeyUp)          // 3.5 new (release held key)
 
+	// ── Scroll ──────────────────────────────────────────────────────────────────
+	// 2.5 names: scroll_document, scroll_at
+	// 3.5 names: scroll (with magnitude arg in pixels)
 	RegisterTool("scroll", handleScroll)
-	RegisterTool("scroll_document", handleScroll)
-	RegisterTool("scroll_at", handleScroll)
+	RegisterTool("scroll_document", handleScroll) // 2.5
+	RegisterTool("scroll_at", handleScroll)       // 2.5
 
+	// ── Drag ────────────────────────────────────────────────────────────────────
 	RegisterTool("drag_and_drop", handleDragAndDrop)
+
+	// ── Hover ───────────────────────────────────────────────────────────────────
 	RegisterTool("hover", handleHover)
-	RegisterTool("hover_at", handleHover)
+	RegisterTool("hover_at", handleHover) // 2.5
 
+	// ── Wait ────────────────────────────────────────────────────────────────────
 	RegisterTool("wait", handleWait)
-	RegisterTool("wait_5_seconds", handleWait)
+	RegisterTool("wait_5_seconds", handleWait) // 2.5
 
+	// ── Screenshot (3.5 new explicit tool) ─────────────────────────────────────
+	// The harness captures a screenshot after every action automatically;
+	// this no-op handler lets the model call take_screenshot without crashing.
+	RegisterTool("take_screenshot", func(_ context.Context, _ map[string]interface{}, _, _ int) (interface{}, error) {
+		log.Printf("take_screenshot: screenshot will be captured by the harness after this turn")
+		return "screenshot_captured_by_harness", nil
+	})
+
+	// ── Inspection / Layout ─────────────────────────────────────────────────────
 	RegisterTool("get_computed_style", handleGetComputedStyle)
 	RegisterTool("inspect_element", handleGetComputedStyle)
-
 	RegisterTool("get_page_layout", handleGetPageLayout)
 	RegisterTool("scan_page", handleGetPageLayout)
-
 	RegisterTool("get_accessibility_tree", handleGetAccessibilityTree)
 
+	// ── Navigation ──────────────────────────────────────────────────────────────
 	RegisterTool("navigate", handleNavigateWrapper)
 	RegisterTool("search", handleSearch)
 
-	RegisterTool("open_web_browser", func(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
+	RegisterTool("open_web_browser", func(_ context.Context, _ map[string]interface{}, _, _ int) (interface{}, error) {
 		return "browser_opened", nil
 	})
 
-	RegisterTool("go_back", func(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
+	RegisterTool("go_back", func(ctx context.Context, _ map[string]interface{}, _, _ int) (interface{}, error) {
 		log.Printf("Executing go_back")
 		err := chromedp.Run(ctx, chromedp.NavigateBack())
-		return "navigated back", err
+		return "navigated_back", err
+	})
+
+	RegisterTool("go_forward", func(ctx context.Context, _ map[string]interface{}, _, _ int) (interface{}, error) { // 3.5 new
+		log.Printf("Executing go_forward")
+		// NavigateForward can hang if there is no forward history; use JS instead
+		// so it is non-blocking — the browser simply stays on the current page.
+		err := chromedp.Run(ctx, chromedp.Evaluate("window.history.forward()", nil))
+		return "navigated_forward", err
 	})
 }
 
@@ -156,6 +200,79 @@ func handleDoubleClick(ctx context.Context, args map[string]interface{}, width, 
 	log.Printf("Double clicking at %f, %f", x, y)
 	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ClickCount(2)))
 	return "double_clicked", err
+}
+
+// handleTripleClick is a Gemini 3.5 Flash new action (select-all equivalent on text fields).
+func handleTripleClick(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	lastMouseX = x
+	lastMouseY = y
+	log.Printf("Triple clicking at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.MouseClickXY(x, y, chromedp.ClickCount(3)))
+	return "triple_clicked", err
+}
+
+// handleMouseDown presses the mouse button without releasing it (3.5 new — used for drag start).
+func handleMouseDown(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	lastMouseX = x
+	lastMouseY = y
+	log.Printf("Mouse down at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchMouseEvent(input.MousePressed, x, y).WithButton("left").WithClickCount(1).Do(ctx)
+	}))
+	return "mouse_down", err
+}
+
+// handleMouseUp releases the mouse button (3.5 new — used for drag end).
+func handleMouseUp(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+	x, y, err := getCoords(args, width, height)
+	if err != nil {
+		return nil, err
+	}
+	lastMouseX = x
+	lastMouseY = y
+	log.Printf("Mouse up at %f, %f", x, y)
+	err = chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchMouseEvent(input.MouseReleased, x, y).WithButton("left").WithClickCount(1).Do(ctx)
+	}))
+	return "mouse_up", err
+}
+
+// handleKeyDown presses and holds a key (3.5 new).
+func handleKeyDown(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
+	key := resolveKeyArg(args)
+	log.Printf("Key down: %s", key)
+	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchKeyEvent(input.KeyDown).WithKey(key).Do(ctx)
+	}))
+	return "key_down", err
+}
+
+// handleKeyUp releases a held key (3.5 new).
+func handleKeyUp(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
+	key := resolveKeyArg(args)
+	log.Printf("Key up: %s", key)
+	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return input.DispatchKeyEvent(input.KeyUp).WithKey(key).Do(ctx)
+	}))
+	return "key_up", err
+}
+
+// resolveKeyArg extracts the key string from action args, supporting all arg name variants.
+func resolveKeyArg(args map[string]interface{}) string {
+	for _, field := range []string{"key", "text", "value", "keys"} {
+		if v, ok := args[field].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func handleMouseMove(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
@@ -286,14 +403,8 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 	return "typed", err
 }
 
-func handleKey(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
-	key, _ := args["text"].(string)
-	if key == "" {
-		key, _ = args["value"].(string)
-	}
-	if k, ok := args["keys"].(string); ok {
-		key = k
-	}
+func handleKey(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
+	key := resolveKeyArg(args)
 	if key == "Enter" || key == "return" {
 		key = "\r"
 	}
@@ -305,32 +416,51 @@ func handleKey(ctx context.Context, args map[string]interface{}, width, height i
 func handleScroll(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
 	dx := 0.0
 	dy := 0.0
+
+	// 2.5-style: delta_x / delta_y
 	if v, ok := args["delta_x"].(float64); ok {
 		dx = v
 	}
 	if v, ok := args["delta_y"].(float64); ok {
 		dy = v
 	}
+
+	// 3.5-style: direction + magnitude (pixels, denormalized).
+	// Default magnitude matches the old fixed 500 px.
 	if direction, ok := args["direction"].(string); ok {
+		magnitude := 500.0
+		if m, ok := args["magnitude"].(float64); ok && m > 0 {
+			// The reference impl denormalizes magnitude the same way as coordinates.
+			switch direction {
+			case "up", "down":
+				magnitude = denormalize(m, height)
+			case "left", "right":
+				magnitude = denormalize(m, width)
+			}
+		}
 		switch direction {
 		case "down":
-			dy = 500
+			dy = magnitude
 		case "up":
-			dy = -500
+			dy = -magnitude
 		case "left":
-			dx = -500
+			dx = -magnitude
 		case "right":
-			dx = 500
+			dx = magnitude
 		}
 	}
-	if args["x"] != nil && args["y"] != nil {
+
+	// scroll_at / scroll_document with explicit x,y target coordinates (2.5-style)
+	if args["x"] != nil && args["y"] != nil && dx == 0 && dy == 0 {
 		x, y, _ := getCoords(args, width, height)
 		log.Printf("Scrolling to coordinate: %f, %f", x, y)
 		err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("window.scrollTo(%f, %f)", x, y), nil))
 		return "scrolled_to_coords", err
 	}
+
 	log.Printf("Scrolling by delta: dx=%f, dy=%f", dx, dy)
-	err := chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf("window.scrollBy({top: %f, left: %f, behavior: 'smooth'})", dy, dx), nil))
+	err := chromedp.Run(ctx, chromedp.Evaluate(
+		fmt.Sprintf("window.scrollBy({top: %f, left: %f, behavior: 'smooth'})", dy, dx), nil))
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +468,7 @@ func handleScroll(ctx context.Context, args map[string]interface{}, width, heigh
 	return "scrolled", err
 }
 
-func handleWait(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
+func handleWait(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
 	seconds := 2.0
 	if s, ok := args["seconds"].(float64); ok {
 		seconds = s
@@ -346,7 +476,9 @@ func handleWait(ctx context.Context, args map[string]interface{}, width, height 
 		seconds = s
 	}
 	log.Printf("Waiting for %f seconds", seconds)
-	err := chromedp.Run(ctx, chromedp.Sleep(time.Duration(seconds)*time.Second))
+	// Use float64 multiplication before converting to Duration to avoid truncation
+	// of sub-second values (e.g. 0.1s → 100ms, not 0s).
+	err := chromedp.Run(ctx, chromedp.Sleep(time.Duration(seconds*float64(time.Second))))
 	return "waited", err
 }
 
