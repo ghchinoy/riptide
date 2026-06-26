@@ -252,12 +252,29 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 	}
 	domCancel()
 
-	history[0].Parts = append(history[0].Parts, &genai.Part{
-		InlineData: &genai.Blob{
-			MIMEType: "image/png",
-			Data:     buf,
-		},
-	})
+	// Guard against an empty initial screenshot buffer. chromedp can
+	// occasionally return zero bytes on a freshly-created target before the
+	// renderer is fully ready. Appending an empty InlineData blob causes the
+	// Vertex API to reject the request with:
+	//   400: parts[1].data: required oneof field 'data' must have one initialized field
+	// Retry once; if still empty, omit the screenshot part (the model can
+	// still proceed from the text prompt and recover via the first navigate).
+	if len(buf) == 0 {
+		emit(EventLog, "Initial screenshot empty; retrying capture...", nil)
+		if retryBuf, retryErr := captureInitialScreenshot(ctx, outputDir, emit); retryErr == nil && len(retryBuf) > 0 {
+			buf = retryBuf
+		}
+	}
+	if len(buf) > 0 {
+		history[0].Parts = append(history[0].Parts, &genai.Part{
+			InlineData: &genai.Blob{
+				MIMEType: "image/png",
+				Data:     buf,
+			},
+		})
+	} else {
+		emit(EventLog, "Proceeding without initial screenshot (empty buffer after retry)", nil)
+	}
 
 	// Capture initial AXTree
 	if useAXT {
@@ -448,15 +465,24 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 					FunctionResponse: &genai.FunctionResponse{
 						Name:     part.FunctionCall.Name,
 						Response: resultMap,
-						Parts: []*genai.FunctionResponsePart{
-							{
-								InlineData: &genai.FunctionResponseBlob{
-									MIMEType: "image/png",
-									Data:     newBuf,
-								},
+					},
+				}
+				// Only attach the post-action screenshot if it's non-empty.
+				// An empty blob triggers a 400 from the Vertex API
+				// (parts[].data: required oneof field 'data' must have one
+				// initialized field). When empty, the text result still flows
+				// back so the model retains turn continuity.
+				if len(newBuf) > 0 {
+					toolResp.FunctionResponse.Parts = []*genai.FunctionResponsePart{
+						{
+							InlineData: &genai.FunctionResponseBlob{
+								MIMEType: "image/png",
+								Data:     newBuf,
 							},
 						},
-					},
+					}
+				} else {
+					emit(EventLog, "Post-action screenshot empty; sending text-only function response", nil)
 				}
 
 				if err != nil {
@@ -534,21 +560,46 @@ func pruneOldScreenshots(history []*genai.Content, maxScreenshots int) {
 		if hasScreenshot {
 			screenshotsFound++
 			if screenshotsFound > maxScreenshots {
-				for _, part := range content.Parts {
-					if part.InlineData != nil {
-						part.InlineData = nil
-					}
-					if part.FunctionResponse != nil {
-						for _, frPart := range part.FunctionResponse.Parts {
-							if frPart.InlineData != nil {
-								frPart.InlineData = nil
-							}
-						}
-					}
-				}
+				content.Parts = pruneScreenshotParts(content.Parts)
 			}
 		}
 	}
+}
+
+// pruneScreenshotParts removes screenshot data from a Part slice without leaving
+// empty husks. A bare InlineData part (screenshot with no text) is dropped
+// entirely; a FunctionResponse keeps its text Response but drops its screenshot
+// Parts. Leaving an empty Part{} or a FunctionResponsePart{} with nil InlineData
+// causes the Vertex API to reject the request with:
+//
+//	400: parts[N].data: required oneof field 'data' must have one initialized field
+func pruneScreenshotParts(parts []*genai.Part) []*genai.Part {
+	kept := make([]*genai.Part, 0, len(parts))
+	for _, part := range parts {
+		switch {
+		case part.InlineData != nil:
+			// Bare screenshot part — drop it entirely (no text to preserve).
+			continue
+		case part.FunctionResponse != nil:
+			// Keep the function response (its text Response matters) but strip
+			// any screenshot blobs from its Parts so no empty husk remains.
+			fr := part.FunctionResponse
+			if len(fr.Parts) > 0 {
+				keptFR := make([]*genai.FunctionResponsePart, 0, len(fr.Parts))
+				for _, frPart := range fr.Parts {
+					if frPart.InlineData != nil {
+						continue // drop screenshot
+					}
+					keptFR = append(keptFR, frPart)
+				}
+				fr.Parts = keptFR
+			}
+			kept = append(kept, part)
+		default:
+			kept = append(kept, part)
+		}
+	}
+	return kept
 }
 
 func capturePostActionScreenshot(ctx context.Context, i int, outputDir string, emit func(EventType, string, interface{})) ([]byte, error) {

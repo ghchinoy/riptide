@@ -239,6 +239,65 @@ func countScreenshots(history []*genai.Content) int {
 	return n
 }
 
+// hasEmptyHusk reports whether any Part or FunctionResponsePart is an empty
+// shell left behind by pruning — i.e. a Part with no text/inline/function
+// content, or a FunctionResponsePart with nil InlineData. These husks cause
+// the Vertex API to reject the request with a 400 "data required" error.
+// This is the check the original pruning tests lacked.
+func hasEmptyHusk(history []*genai.Content) bool {
+	for _, c := range history {
+		for _, p := range c.Parts {
+			// Empty Part: no text, no inline data, no function response.
+			if p.Text == "" && p.InlineData == nil && p.FunctionResponse == nil {
+				return true
+			}
+			if p.FunctionResponse != nil {
+				for _, frp := range p.FunctionResponse.Parts {
+					// FunctionResponsePart husk: nil InlineData with nothing else.
+					if frp.InlineData == nil {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TestPruning_NoEmptyHusksAfterPruning is the regression for the live-discovered
+// bug: pruning nil-ed InlineData in place, leaving empty Part husks that the
+// Vertex API rejected with "parts[N].data: required oneof field 'data'".
+func TestPruning_NoEmptyHusksAfterPruning(t *testing.T) {
+	// Initial message: text + screenshot (mirrors history[0] in production).
+	initial := &genai.Content{
+		Role: "user",
+		Parts: []*genai.Part{
+			{Text: "do a task"},
+			{InlineData: &genai.Blob{MIMEType: "image/png", Data: []byte("png")}},
+		},
+	}
+	history := []*genai.Content{
+		initial,
+		makeFRScreenshotContent(),
+		makeFRScreenshotContent(),
+		makeFRScreenshotContent(),
+		makeFRScreenshotContent(),
+	}
+	pruneOldScreenshots(history, 2)
+
+	if hasEmptyHusk(history) {
+		t.Error("pruning left an empty Part/FunctionResponsePart husk — would cause Vertex 400")
+	}
+	// The initial text prompt must survive even though its screenshot was pruned.
+	if history[0].Parts[0].Text != "do a task" {
+		t.Error("initial text prompt must be preserved after its screenshot is pruned")
+	}
+	// Exactly maxScreenshots screenshots should remain.
+	if got := countScreenshots(history); got != 2 {
+		t.Errorf("expected 2 screenshots after pruning, got %d", got)
+	}
+}
+
 // TestPruning_KeepsExactlyMaxScreenshots is the canonical pruning regression.
 func TestPruning_KeepsExactlyMaxScreenshots(t *testing.T) {
 	for _, max := range []int{1, 2, 3, 5} {
