@@ -2,6 +2,8 @@
 
 .PHONY: all build build-agent build-viewer frontend-build test clean help
 
+BIN_DIR := bin
+
 # Default target
 all: build
 
@@ -18,11 +20,14 @@ help:
 
 build: build-agent build-viewer
 
-build-agent:
-	go build -o riptide main.go
+build-agent: | $(BIN_DIR)
+	go build -o $(BIN_DIR)/riptide main.go
 
-build-viewer: frontend-build
-	go build -o session-viewer cmd/session-viewer/main.go
+build-viewer: frontend-build | $(BIN_DIR)
+	go build -o $(BIN_DIR)/session-viewer cmd/session-viewer/main.go
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
 
 frontend-build:
 	@echo "Building frontend..."
@@ -33,8 +38,8 @@ test:
 	go test -v ./pkg/...
 
 run-viewer: build-viewer
-	./session-viewer
+	./$(BIN_DIR)/session-viewer
 
 clean:
-	rm -f riptide session-viewer
+	rm -rf $(BIN_DIR)
 	rm -rf frontend/dist

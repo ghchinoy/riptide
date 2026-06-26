@@ -1,8 +1,5 @@
 # Binaries
-/main
-/testserver
-/riptide
-/session-viewer
+/bin/
 
 # Logs
 *.log
@@ -15,7 +12,8 @@ screenshots/*
 !screenshots/.keep
 *.gif
 *.png
-!docs/*.png
+*.webp
+!docs/*.webp
 
 # Frontend
 frontend/dist/
@@ -26,10 +24,10 @@ node_modules/
 
 .gemini/
 .env
-/riptide
-/session-viewer
 
 # Dolt database files (added by bd init)
 .dolt/
 *.db
 coverage.out
+
+sources/

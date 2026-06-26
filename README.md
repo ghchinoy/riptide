@@ -2,7 +2,7 @@
 
 *A foundational framework for building AI agents that see, reason, and interact with the web.*
 
-![System Architecture](docs/interaction_infographic_v2.png)
+![System Architecture](docs/interaction_infographic_v2.webp)
 
 ## Overview
 
