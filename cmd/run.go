@@ -84,6 +84,8 @@ func init() {
 	f.String("user-agent", "", "Custom browser User-Agent string")
 	f.Bool("transparent-ua", false, "Append Riptide identifier to User-Agent")
 	f.Bool("serve", false, "Start session viewer alongside the agent")
+	// hyt.1: full-page debug screenshots default OFF (expensive resize-capture-resize cycle).
+	f.Bool("debug-screenshots", false, "Save full-page turn_N_full.png screenshots (slow on tall SPAs, useful for debugging)")
 
 	_ = runCmd.MarkFlagRequired("prompt")
 }
@@ -132,6 +134,7 @@ func runSession(cmd *cobra.Command, _ []string) error {
 	quitOnExit := resolveBool("quit-on-exit", "tui.quit_on_exit")
 	highContrast := resolveBool("high-contrast", "tui.high_contrast")
 	serve := resolveBool("serve", "")
+	debugScreenshots := resolveBool("debug-screenshots", "session.debug_screenshots")
 	sessionsDir := viper.GetString("sessions.dir")
 
 	// Respect RIPTIDE_NO_TUI for AX/headless mode.
@@ -196,16 +199,16 @@ func runSession(cmd *cobra.Command, _ []string) error {
 
 	if !useTUI {
 		return runHeadless(ctx, client, sessionsDir, sessionID, prompt,
-			makeGif, showBrowser, ua, useAXT, maxTurns, maxScreenshots, mode, serve)
+			makeGif, showBrowser, debugScreenshots, ua, useAXT, maxTurns, maxScreenshots, mode, serve)
 	}
 	return runTUI(ctx, client, sessionsDir, sessionID, prompt,
-		makeGif, showBrowser, ua, useAXT, maxTurns, maxScreenshots, mode,
+		makeGif, showBrowser, debugScreenshots, ua, useAXT, maxTurns, maxScreenshots, mode,
 		quitOnExit, highContrast, serve)
 }
 
 func runHeadless(ctx context.Context, client *genai.Client,
 	sessionsDir, sessionID, prompt string,
-	makeGif, showBrowser bool, ua string, useAXT bool,
+	makeGif, showBrowser, debugScreenshots bool, ua string, useAXT bool,
 	maxTurns, maxScreenshots int, mode string, serve bool,
 ) error {
 	fmt.Printf("Starting session: %s\n", styleID.Render(sessionID))
@@ -230,7 +233,7 @@ func runHeadless(ctx context.Context, client *genai.Client,
 	}
 
 	err := computer.Run(ctx, client, sessionsDir, sessionID, prompt,
-		makeGif, showBrowser, ua, useAXT, observer, safetyHandler,
+		makeGif, showBrowser, debugScreenshots, ua, useAXT, observer, safetyHandler,
 		maxTurns, maxScreenshots, mode)
 	if err != nil && err != context.Canceled {
 		return fmt.Errorf("session failed: %w", err)
@@ -240,7 +243,7 @@ func runHeadless(ctx context.Context, client *genai.Client,
 
 func runTUI(ctx context.Context, client *genai.Client,
 	sessionsDir, sessionID, prompt string,
-	makeGif, showBrowser bool, ua string, useAXT bool,
+	makeGif, showBrowser, debugScreenshots bool, ua string, useAXT bool,
 	maxTurns, maxScreenshots int, mode string,
 	quitOnExit, highContrast, serve bool,
 ) error {
@@ -262,7 +265,7 @@ func runTUI(ctx context.Context, client *genai.Client,
 		}
 
 		err := computer.Run(ctx, client, sessionsDir, sessionID, prompt,
-			makeGif, showBrowser, ua, useAXT, observer,
+			makeGif, showBrowser, debugScreenshots, ua, useAXT, observer,
 			m.GetSafetyHandler(p), maxTurns, maxScreenshots, mode)
 		if err != nil && err != context.Canceled {
 			p.Send(computer.Event{Type: computer.EventError,

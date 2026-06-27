@@ -97,7 +97,10 @@ func initViper() {
 	// Gemini 3.5 Flash computer use is served from the 'global' location.
 	// us-central1 and other regional endpoints return NOT_FOUND for this model.
 	viper.SetDefault("google.location", "global")
-	viper.SetDefault("session.max_turns", 10)
+	// Raised from 10 to 20 (hyt.2): Python reference defaults to 20; Tier 1
+	// S3/S4 hit the 10-turn ceiling while making forward progress. Complex
+	// multi-step SPA tasks (Google Flights, Store) need 15-20 turns to complete.
+	viper.SetDefault("session.max_turns", 20)
 	viper.SetDefault("session.max_screenshots", 3)
 	viper.SetDefault("session.axt", true)
 	viper.SetDefault("session.transparent_ua", true)
