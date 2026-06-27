@@ -282,4 +282,103 @@ func (c *MacOSAppController) Stop() error {
 }
 ```
 
+---
+
+## 7. Refined Architecture: The Unified Go Binary
+
+To fulfill the goal of delivering a **single, extensible Go binary** that handles both web-browser automation and desktop application testing without code bifurcation, we must incorporate specific architectural patterns into our Go implementation:
+
+### 1. The Environment Driver Interface Abstraction
+
+We will introduce a clean interface abstraction (`pkg/computer/driver.go`). Riptide’s core orchestration loop in `computer.go` and `executor.go` will call this interface, decoupling the high-level Observe-Reason-Act logic from the specific low-level driver backend (browser or desktop).
+
+```go
+package computer
+
+import "context"
+
+// EnvironmentDriver defines the unified capabilities required to drive any environment
+type EnvironmentDriver interface {
+	// Initialize starts the environment (e.g., launches browser or targets application)
+	Initialize(ctx context.Context, config map[string]interface{}) error
+	
+	// Close terminates the environment and cleans up resources
+	Close() error
+	
+	// CaptureState returns the visual (screenshot) and semantic (AXTree) state of the environment
+	CaptureState(ctx context.Context) ([]byte, []byte, error)
+	
+	// ExecuteAction dispatches a low-level event (click, type, drag, scroll) to the environment
+	ExecuteAction(ctx context.Context, action string, args map[string]interface{}) (interface{}, error)
+}
+```
+
+### 2. Conditional Compilation via Go Build Tags
+
+Because the macOS desktop driver relies on linking macOS Cocoa and CoreGraphics frameworks through CGo, it would break builds on Linux (e.g., in Docker containers used for CI/CD) and Windows. 
+
+To prevent compile-time failures, we use Go **build tags**:
+*   **macOS Desktop Driver (`pkg/computer/driver_desktop_macos.go`):**
+    ```go
+    //go:build darwin
+    
+    package computer
+    
+    // CGo linking headers and Cocoa implementation go here
+    ```
+*   **Stub Desktop Driver (`pkg/computer/driver_desktop_stub.go`):**
+    ```go
+    //go:build !darwin
+    
+    package computer
+    
+    import (
+    	"context"
+    	"errors"
+    )
+    
+    // Stub implementation that returns an informative error if running on non-macOS systems
+    ```
+
+### 3. Dynamic Driver Registration Factory
+
+We will implement a driver registry within `pkg/computer/registry.go`. Drivers will register themselves dynamically, allowing the main CLI runner (`main.go`) to spin up the appropriate driver based on command-line flags.
+
+```go
+package computer
+
+import "fmt"
+
+var drivers = make(map[string]EnvironmentDriver)
+
+func RegisterDriver(name string, d EnvironmentDriver) {
+	drivers[name] = d
+}
+
+func GetDriver(name string) (EnvironmentDriver, error) {
+	d, ok := drivers[name]
+	if !ok {
+		return nil, fmt.Errorf("driver %s is not registered or supported on this platform", name)
+	}
+	return d, nil
+}
+```
+
+### 4. Consolidated CLI Interface
+
+The user experience remains highly integrated. Running a web test or a macOS app test uses the exact same `riptide` binary, determined purely by flags:
+
+*   **To run a web test:**
+    ```bash
+    ./riptide -env=browser -prompt "Go to https://google.com..."
+    ```
+*   **To run a native desktop app test (e.g., Elvish):**
+    ```bash
+    ./riptide -env=desktop -app="/Users/ghchinoy/projects/elvish-app/.../Elvish.app" -prompt "Click on the Parmaite font selector..."
+    ```
+
+This architecture ensures that Riptide remains a single, robust, and highly extensible Go binary that can be deployed across heterogeneous environments while retaining platform-native accuracy.
+
+---
+
 This scaffolding establishes a robust foundation for building OS-level automation drivers. By executing this plan, Riptide will expand seamlessly into a highly versatile cross-platform agentic testing suite.
