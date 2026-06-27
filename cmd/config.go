@@ -80,7 +80,7 @@ model:
 
 # Agent session defaults
 session:
-  max_turns: %d
+  max_turns: %d      # Raised to 20 to match Python reference; complex SPAs need 15-20 turns
   max_screenshots: %d
   axt: %v
   transparent_ua: %v

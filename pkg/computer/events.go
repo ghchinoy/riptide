@@ -31,6 +31,10 @@ const (
 	// prompt injection detection identifies malicious page content attempting
 	// to hijack the agent's instructions. The session is terminated automatically.
 	EventPromptInjection EventType = "prompt_injection"
+	// EventLoop is emitted when the thrash/loop detector fires: the same
+	// (action, url) pair has repeated 3+ consecutive times. A synthetic
+	// correction is injected into history to break the cycle.
+	EventLoop EventType = "loop"
 )
 
 // Event represents a single update from the computer loop.

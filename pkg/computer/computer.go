@@ -79,7 +79,60 @@ func isPromptInjectionResponse(cand *genai.Candidate) bool {
 		cand.FinishReason == genai.FinishReasonProhibitedContent
 }
 
-func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser bool, userAgent string, useAXT bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
+// actionClass categorises an action name for wait-strategy selection.
+type actionClass int
+
+const (
+	actionClassNavigation  actionClass = iota // navigate, go_back, go_forward — page changes
+	actionClassInteraction                    // click, type, scroll, drag — in-page mutations
+	actionClassPassive                        // screenshot, wait, cursor_position — no DOM change
+)
+
+// classifyAction returns the wait class for a resolved action name.
+func classifyAction(name string) actionClass {
+	switch name {
+	case "navigate", "go_back", "go_forward", "search":
+		return actionClassNavigation
+	case "take_screenshot", "wait", "wait_5_seconds", "cursor_position",
+		"get_page_layout", "scan_page", "get_computed_style", "inspect_element",
+		"get_accessibility_tree":
+		return actionClassPassive
+	default:
+		return actionClassInteraction
+	}
+}
+
+// thrashWindow tracks recent (action, url) pairs for loop detection.
+type thrashWindow struct {
+	entries []string
+	size    int
+}
+
+func newThrashWindow(size int) *thrashWindow { return &thrashWindow{size: size} }
+
+func (w *thrashWindow) record(actionName, url string) {
+	key := actionName + "|" + url
+	w.entries = append(w.entries, key)
+	if len(w.entries) > w.size {
+		w.entries = w.entries[1:]
+	}
+}
+
+// repeating returns true when the last n entries in the window are identical.
+func (w *thrashWindow) repeating(n int) bool {
+	if len(w.entries) < n {
+		return false
+	}
+	tail := w.entries[len(w.entries)-n:]
+	for i := 1; i < len(tail); i++ {
+		if tail[i] != tail[0] {
+			return false
+		}
+	}
+	return true
+}
+
+func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prompt string, makeGif, showBrowser, debugScreenshots bool, userAgent string, useAXT bool, observer Observer, safetyHandler SafetyHandler, maxTurns, maxScreenshots int, mode string) error {
 	// Helper to emit events
 	emit := func(t EventType, msg string, data interface{}) {
 		// Always log to session log file as well
@@ -306,6 +359,12 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 		}
 	}()
 
+	// thrash tracks recent (action, url) pairs to detect stuck loops.
+	thrash := newThrashWindow(9) // 9-entry window to catch a 3-cycle repeat
+	// lastActionClass remembers the class of the most-recently-executed action
+	// so the AXTree fetch can be skipped right after navigation turns.
+	lastActionClass := actionClassPassive
+
 	for i := 0; i < maxTurns; i++ {
 		emit(EventStatus, fmt.Sprintf("Turn %d/%d: Sending request...", i+1, maxTurns), nil)
 
@@ -418,6 +477,7 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 
 				emit(EventAction, fmt.Sprintf("Tool Call: %s", part.FunctionCall.Name), part.FunctionCall.Args)
 
+				ac := classifyAction(actionName)
 				resultMap, err := Execute(ctx, part.FunctionCall, 1280, 1024)
 				if err != nil {
 					log.Printf("Execute error: %v", err)
@@ -446,8 +506,9 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 					emit(EventStatus, "Safety request approved. Proceeding.", nil)
 				}
 
-				// Capture NEW screenshot for the next state
-				newBuf, err := capturePostActionScreenshot(ctx, i, outputDir, emit)
+				// Capture NEW screenshot for the next state.
+				// Pass the action class so the wait strategy can be tuned.
+				newBuf, err := capturePostActionScreenshot(ctx, i, ac, outputDir, emit, debugScreenshots)
 				if err != nil {
 					emit(EventError, "Failed to capture post-action screenshot", err)
 				}
@@ -499,11 +560,40 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 					},
 				})
 
-				// Capture AXTree for this turn
-				if useAXT {
+				// --- hyt.5: Loop / thrash detection ---
+				// Record (action, url) and inject a correction if the same
+				// tuple has repeated 3 consecutive times.
+				var currentURL string
+				if resultMap != nil {
+					if u, ok := resultMap["url"].(string); ok {
+						currentURL = u
+					}
+				}
+				thrash.record(actionName, currentURL)
+				if thrash.repeating(3) {
+					emit(EventLoop, fmt.Sprintf("Loop detected: '%s' at %s repeated 3 times. Injecting correction.", actionName, currentURL), nil)
+					history = append(history, &genai.Content{
+						Role: "user",
+						Parts: []*genai.Part{{
+							Text: "You appear to be repeating the same action without making progress. " +
+								"Stop, re-examine the current page state carefully, and try a different approach. " +
+								"If you cannot find the target element, use get_page_layout to scan all interactive elements.",
+						}},
+					})
+					thrash = newThrashWindow(9) // reset after injection
+				}
+				lastActionClass = ac
+
+				// --- hyt.4: Conditional AXTree ---
+				// Skip immediately after navigation turns: the page just changed and
+				// the model already has a fresh screenshot; a stale AXTree adds noise.
+				// On interaction turns (click/type/scroll) the AXTree reflects current
+				// form state and is most valuable.
+				if useAXT && lastActionClass != actionClassNavigation {
 					axTree, err := handleGetAccessibilityTree(ctx, nil, 1280, 1024)
 					if err == nil {
 						if b, err := json.Marshal(axTree); err == nil {
+							emit(EventLog, "AXTree captured for this interaction turn", nil)
 							history = append(history, &genai.Content{
 								Role: "user",
 								Parts: []*genai.Part{
@@ -514,6 +604,8 @@ func Run(ctx context.Context, client *genai.Client, sessionsDir, sessionID, prom
 							})
 						}
 					}
+				} else if useAXT {
+					emit(EventLog, "AXTree skipped (post-navigation turn — model has fresh screenshot)", nil)
 				}
 
 			}
@@ -602,14 +694,35 @@ func pruneScreenshotParts(parts []*genai.Part) []*genai.Part {
 	return kept
 }
 
-func capturePostActionScreenshot(ctx context.Context, i int, outputDir string, emit func(EventType, string, interface{})) ([]byte, error) {
+// actionWaitDuration returns an appropriate post-action settle time by class.
+// Navigation changes the full page; interactions trigger JS re-renders; passive
+// actions don't change state. Bounded to avoid stalling on slow networks.
+func actionWaitDuration(ac actionClass) time.Duration {
+	switch ac {
+	case actionClassNavigation:
+		// After navigate/go_back/go_forward the page may still be loading JS.
+		// A 1.2s settle prevents stale-frame thrashing without blocking too long.
+		return 1200 * time.Millisecond
+	case actionClassInteraction:
+		// Click/type/scroll may trigger SPA transitions; 350ms is enough for
+		// React/Vue re-renders while keeping per-turn overhead low.
+		return 350 * time.Millisecond
+	default: // passive
+		return 100 * time.Millisecond
+	}
+}
+
+func capturePostActionScreenshot(ctx context.Context, i int, ac actionClass, outputDir string, emit func(EventType, string, interface{}), debugScreenshots bool) ([]byte, error) {
 	var newBuf []byte
 	screenshotStart := time.Now()
 
-	log.Printf("Taking post-action screenshot for turn %d...", i+1)
+	settle := actionWaitDuration(ac)
+	log.Printf("Taking post-action screenshot for turn %d (class=%d, settle=%v)...", i+1, ac, settle)
+
 	screenshotCtx, screenshotCancel := context.WithTimeout(ctx, 15*time.Second)
 	err := chromedp.Run(screenshotCtx,
 		chromedp.WaitReady("body"),
+		chromedp.Sleep(settle),
 		chromedp.CaptureScreenshot(&newBuf),
 	)
 	screenshotCancel()
@@ -622,16 +735,22 @@ func capturePostActionScreenshot(ctx context.Context, i int, outputDir string, e
 	}
 
 	if err == nil {
-		log.Printf("Post-action screenshot captured: %d bytes", len(newBuf))
+		log.Printf("Post-action screenshot captured: %d bytes in %v", len(newBuf), time.Since(screenshotStart).Round(time.Millisecond))
 		postFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_post.png", i+1))
 		if err := os.WriteFile(postFilename, newBuf, 0644); err != nil {
 			log.Printf("Warning: failed to save post-action screenshot: %v", err)
 		}
 
-		var fullBuf []byte
-		if err := captureFullPageScreenshot(ctx, &fullBuf); err == nil {
-			fullFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_full.png", i+1))
-			_ = os.WriteFile(fullFilename, fullBuf, 0644)
+		// hyt.1: Full-page debug screenshot is gated behind --debug-screenshots.
+		// It performs a viewport resize-capture-resize cycle on the full page
+		// height (5000px+ on SPAs) — the dominant source of per-turn overhead.
+		// Default: OFF. Enable with --debug-screenshots for post-session analysis.
+		if debugScreenshots {
+			var fullBuf []byte
+			if err := captureFullPageScreenshot(ctx, &fullBuf); err == nil {
+				fullFilename := filepath.Join(outputDir, fmt.Sprintf("turn_%d_full.png", i+1))
+				_ = os.WriteFile(fullFilename, fullBuf, 0644)
+			}
 		}
 	}
 	return newBuf, err

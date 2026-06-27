@@ -64,7 +64,7 @@ func TestScenario_Lights(t *testing.T) {
 
 	                
 
-	                        err = Run(ctx, client, "sessions", sessionID, prompt, false, false, ua, true, nil, nil, 10, 3, "default")
+	                        err = Run(ctx, client, "sessions", sessionID, prompt, false, false, false, ua, true, nil, nil, 10, 3, "default")
 
 	                        if err != nil {
 
