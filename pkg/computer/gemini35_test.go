@@ -27,8 +27,8 @@ import (
 
 func TestModelName(t *testing.T) {
 	const want = "gemini-3.5-flash"
-	if ModelName != want {
-		t.Errorf("ModelName = %q; want %q", ModelName, want)
+	if DefaultModelName != want {
+		t.Errorf("DefaultModelName = %q; want %q", DefaultModelName, want)
 	}
 }
 
@@ -79,8 +79,8 @@ func TestBuildSystemInstruction_ContainsKeyConstraints(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestThinkingBudget_Positive(t *testing.T) {
-	if ThinkingBudget <= 0 {
-		t.Errorf("ThinkingBudget = %d; want > 0", ThinkingBudget)
+	if DefaultThinkingBudget <= 0 {
+		t.Errorf("DefaultThinkingBudget = %d; want > 0", DefaultThinkingBudget)
 	}
 }
 
@@ -213,6 +213,15 @@ func TestAllEventTypes_Unique(t *testing.T) {
 			t.Errorf("duplicate EventType value: %q", et)
 		}
 		seen[et] = true
+	}
+}
+
+func TestRunOptions_ThinkingLevel(t *testing.T) {
+	opts := RunOptions{
+		ThinkingLevel: "LOW",
+	}
+	if opts.ThinkingLevel != "LOW" {
+		t.Errorf("opts.ThinkingLevel = %q; want %q", opts.ThinkingLevel, "LOW")
 	}
 }
 

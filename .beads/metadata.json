@@ -1,8 +1,9 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "embedded",
+  "dolt_mode": "server",
   "dolt_database": "beads_riptide",
+  "dolt_port": 59442,
   "project_id": "2887d68e-22ae-476c-97e1-b5e622287758",
   "last_bd_version": "0.28.0"
 }

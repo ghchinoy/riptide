@@ -64,7 +64,10 @@ Credentials are loaded from (in priority order):
   riptide run --prompt "..." --show-browser
 
   # Serve the session viewer alongside the run
-  riptide run --prompt "..." --serve`,
+  riptide run --prompt "..." --serve
+
+  # Override the model for this run only
+  riptide run --prompt "..." --model gemini-3.5-flash`,
 	RunE: runSession,
 }
 
@@ -86,6 +89,12 @@ func init() {
 	f.Bool("serve", false, "Start session viewer alongside the agent")
 	// hyt.1: full-page debug screenshots default OFF (expensive resize-capture-resize cycle).
 	f.Bool("debug-screenshots", false, "Save full-page turn_N_full.png screenshots (slow on tall SPAs, useful for debugging)")
+	f.String("model", "", "Gemini model to use for computer use (empty = use config/model.name, default: "+computer.DefaultModelName+")")
+	f.Int("thinking-budget", 0, "Token budget for internal reasoning (0 = use config/model.thinking_budget)")
+	f.String("thinking-level", "", "Thinking level for internal reasoning (MINIMAL | LOW | MEDIUM | HIGH)")
+	f.String("attach", "", "CDP endpoint of an already-running Chrome instance to attach to (e.g. http://localhost:9222)")
+	f.String("tab-id", "", "Target ID of a specific open tab to attach to (requires --attach)")
+	f.String("tab-url-match", "", "Substring match to pick an open tab by URL (requires --attach)")
 
 	_ = runCmd.MarkFlagRequired("prompt")
 }
@@ -101,13 +110,6 @@ func runSession(cmd *cobra.Command, _ []string) error {
 
 	// Resolve all settings: flag > viper (env/file/default).
 	flags := cmd.Flags()
-	resolve := func(flag, key string) interface{} {
-		if flags.Changed(flag) {
-			v, _ := flags.GetString(flag)
-			return v
-		}
-		return viper.Get(key)
-	}
 	resolveBool := func(flag, key string) bool {
 		if flags.Changed(flag) {
 			v, _ := flags.GetBool(flag)
@@ -123,19 +125,51 @@ func runSession(cmd *cobra.Command, _ []string) error {
 		return viper.GetInt(key)
 	}
 
+	resolveString := func(flag, key string) string {
+		if flags.Changed(flag) {
+			v, _ := flags.GetString(flag)
+			return v
+		}
+		if key != "" && viper.IsSet(key) {
+			return viper.GetString(key)
+		}
+		return ""
+	}
+
 	prompt, _ := flags.GetString("prompt")
 	maxTurns := resolveInt("max-turns", "session.max_turns")
 	maxScreenshots := resolveInt("max-screenshots", "session.max_screenshots")
 	makeGif := resolveBool("gif", "session.gif")
 	showBrowser := resolveBool("show-browser", "session.show_browser")
 	useAXT := resolveBool("axt", "session.axt")
-	mode := resolve("mode", "session.mode").(string)
+	mode := resolveString("mode", "session.mode")
 	useTUI := resolveBool("tui", "tui.enabled")
 	quitOnExit := resolveBool("quit-on-exit", "tui.quit_on_exit")
 	highContrast := resolveBool("high-contrast", "tui.high_contrast")
 	serve := resolveBool("serve", "")
 	debugScreenshots := resolveBool("debug-screenshots", "session.debug_screenshots")
 	sessionsDir := viper.GetString("sessions.dir")
+	modelName := resolveString("model", "model.name")
+	if modelName == "" {
+		modelName = computer.DefaultModelName
+	}
+	thinkingBudget := int32(resolveInt("thinking-budget", "model.thinking_budget"))
+	thinkingLevel := resolveString("thinking-level", "model.thinking_level")
+	attachURL := resolveString("attach", "browser.attach_url")
+	tabID := resolveString("tab-id", "browser.tab_id")
+	tabURLMatch := resolveString("tab-url-match", "browser.tab_url_match")
+
+	if tabID != "" && tabURLMatch != "" {
+		return fmt.Errorf("cannot specify both --tab-id and --tab-url-match; choose one")
+	}
+	if attachURL == "" && (tabID != "" || tabURLMatch != "") {
+		return fmt.Errorf("--tab-id and --tab-url-match require --attach <cdp-url>")
+	}
+	if attachURL != "" && flags.Changed("show-browser") {
+		fmt.Fprintf(os.Stderr, "%s --show-browser is ignored when attaching to an existing browser via --attach\n", styleWarn.Render("Warning:"))
+	}
+
+	warnIfLegacyComputerUseModel(modelName)
 
 	// Respect RIPTIDE_NO_TUI for AX/headless mode.
 	if os.Getenv("RIPTIDE_NO_TUI") != "" {
@@ -197,19 +231,59 @@ func runSession(cmd *cobra.Command, _ []string) error {
 		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
 	}
 
-	if !useTUI {
-		return runHeadless(ctx, client, sessionsDir, sessionID, prompt,
-			makeGif, showBrowser, debugScreenshots, ua, useAXT, maxTurns, maxScreenshots, mode, serve)
+	opts := computer.RunOptions{
+		MakeGif:          makeGif,
+		ShowBrowser:      showBrowser,
+		DebugScreenshots: debugScreenshots,
+		UserAgent:        ua,
+		UseAXT:           useAXT,
+		MaxTurns:         maxTurns,
+		MaxScreenshots:   maxScreenshots,
+		Mode:             mode,
+		ModelName:        modelName,
+		ThinkingBudget:   thinkingBudget,
+		ThinkingLevel:    thinkingLevel,
+		AttachURL:        attachURL,
+		TabID:            tabID,
+		TabURLMatch:      tabURLMatch,
 	}
-	return runTUI(ctx, client, sessionsDir, sessionID, prompt,
-		makeGif, showBrowser, debugScreenshots, ua, useAXT, maxTurns, maxScreenshots, mode,
-		quitOnExit, highContrast, serve)
+
+	if !useTUI {
+		return runHeadless(ctx, client, sessionsDir, sessionID, prompt, serve, opts)
+	}
+	return runTUI(ctx, client, sessionsDir, sessionID, prompt, quitOnExit, highContrast, serve, opts)
+}
+
+// knownLegacyComputerUseModels lists model names that require the "legacy"
+// computer-use function-call dialect (predefined function names such as
+// click_at/hover_at rather than the Gemini 3.5 Flash native names). Riptide's
+// Go harness (pkg/computer/tools_standard.go) only dispatches the 3.5-style
+// dialect, so runs against these models are not expected to work correctly.
+// This is a warning, not a hard block, since model names and capabilities
+// change over time and we don't want to reject models we don't yet know about.
+var knownLegacyComputerUseModels = []string{
+	"gemini-2.5-computer-use-preview-10-2025",
+	"gemini-3-flash-preview",
+	"gemini-3.1-pro-preview",
+}
+
+// warnIfLegacyComputerUseModel prints a stderr warning if modelName is known
+// to require the legacy computer-use function-call dialect, which this
+// harness does not implement. The run is still allowed to proceed.
+func warnIfLegacyComputerUseModel(modelName string) {
+	for _, legacy := range knownLegacyComputerUseModels {
+		if modelName == legacy {
+			fmt.Fprintf(os.Stderr,
+				"%s model %q uses the legacy computer-use function-call dialect, which Riptide's harness does not support. Actions may fail or be misinterpreted. Use %q instead.\n",
+				styleWarn.Render("Warning:"), modelName, computer.DefaultModelName)
+			return
+		}
+	}
 }
 
 func runHeadless(ctx context.Context, client *genai.Client,
-	sessionsDir, sessionID, prompt string,
-	makeGif, showBrowser, debugScreenshots bool, ua string, useAXT bool,
-	maxTurns, maxScreenshots int, mode string, serve bool,
+	sessionsDir, sessionID, prompt string, serve bool,
+	opts computer.RunOptions,
 ) error {
 	fmt.Printf("Starting session: %s\n", styleID.Render(sessionID))
 
@@ -232,9 +306,7 @@ func runHeadless(ctx context.Context, client *genai.Client,
 		}
 	}
 
-	err := computer.Run(ctx, client, sessionsDir, sessionID, prompt,
-		makeGif, showBrowser, debugScreenshots, ua, useAXT, observer, safetyHandler,
-		maxTurns, maxScreenshots, mode)
+	err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, observer, safetyHandler, opts)
 	if err != nil && err != context.Canceled {
 		return fmt.Errorf("session failed: %w", err)
 	}
@@ -243,9 +315,8 @@ func runHeadless(ctx context.Context, client *genai.Client,
 
 func runTUI(ctx context.Context, client *genai.Client,
 	sessionsDir, sessionID, prompt string,
-	makeGif, showBrowser, debugScreenshots bool, ua string, useAXT bool,
-	maxTurns, maxScreenshots int, mode string,
 	quitOnExit, highContrast, serve bool,
+	opts computer.RunOptions,
 ) error {
 	m := tui.NewModel(sessionsDir, sessionID, quitOnExit, highContrast)
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -264,9 +335,7 @@ func runTUI(ctx context.Context, client *genai.Client,
 			observer = tuiObserver
 		}
 
-		err := computer.Run(ctx, client, sessionsDir, sessionID, prompt,
-			makeGif, showBrowser, debugScreenshots, ua, useAXT, observer,
-			m.GetSafetyHandler(p), maxTurns, maxScreenshots, mode)
+		err := computer.Run(ctx, client, sessionsDir, sessionID, prompt, observer, m.GetSafetyHandler(p), opts)
 		if err != nil && err != context.Canceled {
 			p.Send(computer.Event{Type: computer.EventError,
 				Message: fmt.Sprintf("Fatal: %v", err)})
