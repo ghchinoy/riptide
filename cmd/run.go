@@ -159,6 +159,9 @@ func runSession(cmd *cobra.Command, _ []string) error {
 	tabID := resolveString("tab-id", "browser.tab_id")
 	tabURLMatch := resolveString("tab-url-match", "browser.tab_url_match")
 
+	if flags.Changed("thinking-budget") && flags.Changed("thinking-level") {
+		return fmt.Errorf("cannot specify both --thinking-budget and --thinking-level; choose one")
+	}
 	if tabID != "" && tabURLMatch != "" {
 		return fmt.Errorf("cannot specify both --tab-id and --tab-url-match; choose one")
 	}

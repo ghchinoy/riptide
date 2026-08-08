@@ -73,10 +73,11 @@ google:
   project: ""
   location: "global"  # 3.5 Flash computer use is only served from 'global'
 
-# Model settings (overridable per-run with --model / --thinking-budget)
+# Model settings (overridable per-run with --model / --thinking-budget / --thinking-level)
 model:
   name: "%s"
   thinking_budget: %d
+  thinking_level: "%s"
 
 # Agent session defaults
 session:
@@ -105,6 +106,7 @@ viewer:
 `,
 			viper.GetString("model.name"),
 			viper.GetInt("model.thinking_budget"),
+			viper.GetString("model.thinking_level"),
 			viper.GetInt("session.max_turns"),
 			viper.GetInt("session.max_screenshots"),
 			viper.GetBool("session.axt"),
@@ -144,7 +146,7 @@ var configShowCmd = &cobra.Command{
 
 		keys := []string{
 			"google.project", "google.location",
-			"model.name", "model.thinking_budget",
+			"model.name", "model.thinking_budget", "model.thinking_level",
 			"browser.attach_url", "browser.tab_id", "browser.tab_url_match",
 			"session.max_turns", "session.max_screenshots",
 			"session.axt", "session.transparent_ua",
@@ -197,7 +199,7 @@ var configShowCmd = &cobra.Command{
 			keys  []string
 		}{
 			{"Credentials", []string{"google.project", "google.location"}},
-			{"Model", []string{"model.name", "model.thinking_budget"}},
+			{"Model", []string{"model.name", "model.thinking_budget", "model.thinking_level"}},
 			{"Browser Attach", []string{"browser.attach_url", "browser.tab_id", "browser.tab_url_match"}},
 			{"Session Defaults", []string{
 				"session.max_turns", "session.max_screenshots",
