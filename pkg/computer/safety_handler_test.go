@@ -146,3 +146,25 @@ func TestSafetyHandler_SafetyDecisionArgParsed(t *testing.T) {
 		t.Error("explanation should not be empty")
 	}
 }
+
+// TestPromptInjectionDetection_CandidateFinishReasons verifies that candidates with
+// FinishReasonSafety or FinishReasonProhibitedContent trigger injection detection.
+func TestPromptInjectionDetection_CandidateFinishReasons(t *testing.T) {
+	tests := []struct {
+		reason genai.FinishReason
+		want   bool
+	}{
+		{genai.FinishReasonStop, false},
+		{genai.FinishReasonSafety, true},
+		{genai.FinishReasonProhibitedContent, true},
+		{genai.FinishReasonMaxTokens, false},
+	}
+
+	for _, tt := range tests {
+		cand := &genai.Candidate{FinishReason: tt.reason}
+		got := isPromptInjectionResponse(cand)
+		if got != tt.want {
+			t.Errorf("isPromptInjectionResponse(%s) = %v; want %v", tt.reason, got, tt.want)
+		}
+	}
+}

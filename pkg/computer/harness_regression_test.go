@@ -407,6 +407,31 @@ func TestSystemInstruction_ContainsSafetyDecisionMechanism(t *testing.T) {
 	}
 }
 
+// TestSystemInstruction_ContainsRule1AndRule2Categories verifies that all
+// high-stakes RULE 1 and RULE 2 categories are enumerated per Google safety docs.
+func TestSystemInstruction_ContainsRule1AndRule2Categories(t *testing.T) {
+	si := buildSystemInstruction()
+	text := si.Parts[0].Text
+
+	requiredTerms := []string{
+		"RULE 1",
+		"RULE 2",
+		"Terms of Service",
+		"Financial Transactions",
+		"Outbound Communications",
+		"Sensitive Data Operations",
+		"Account Security",
+		"CAPTCHAs",
+		"Browser Settings",
+	}
+
+	for _, term := range requiredTerms {
+		if !containsFold(text, term) {
+			t.Errorf("system instruction missing required RULE 1/2 term: %q", term)
+		}
+	}
+}
+
 // containsFold is a case-insensitive string contains helper.
 func containsFold(s, substr string) bool {
 	sl := len(s)
