@@ -125,6 +125,64 @@ For a comprehensive matrix of every tool, alias, and capability, see the [Riptid
 | `-user-agent` | (Chrome/macOS) | Custom User Agent string to use for the browser session. |
 | `-transparent-ua`| `true` | Append Riptide identification to the User Agent (polite mode). |
 | `-axt` | `true` | Capture and inject the Accessibility Tree (AXTree) for semantic reasoning. |
+| `-model` | `gemini-3.5-flash` | Gemini model to use for computer use. Overrides the `model.name` config key for this run only. Only models that speak the Gemini 3.5 Flash native computer-use function-call dialect are supported (older preview models like `gemini-2.5-computer-use-preview-10-2025` use a different, unsupported dialect and will print a warning). |
+| `-thinking-budget` | `8192` | Token budget for the model's internal reasoning per turn. Overrides the `model.thinking_budget` config key for this run only. |
+| `-attach` | (none) | CDP URL of a running Chrome instance to attach to (e.g. `http://localhost:9222`). |
+| `-tab-id` | (none) | Target ID of a specific open tab to attach to (requires `--attach`). |
+| `-tab-url-match` | (none) | Substring match to select an open tab by URL (requires `--attach`). |
+
+Both the model name, thinking budget, and attach settings can also be set persistently via `~/.config/riptide/config.yaml` (`model.name`, `model.thinking_budget`, `browser.attach_url`) or `riptide config set browser.attach_url <url>`.
+
+## Attaching to an Existing Browser
+
+Riptide can attach to an existing Chrome browser instance rather than spawning a fresh headless instance.
+
+> **Important (macOS/Linux):** If you already have your normal Chrome running, Chrome won't start a second debugging port under your default profile. You must specify a separate `--user-data-dir` to force Chrome to start an independent debugging process.
+
+**macOS:**
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.riptide-chrome-profile" \
+  --no-first-run --no-default-browser-check
+```
+
+**Linux:**
+```bash
+google-chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.riptide-chrome-profile" \
+  --no-first-run --no-default-browser-check
+```
+
+Verify that the DevTools endpoint is listening:
+
+```bash
+curl http://localhost:9222/json/version
+```
+
+Use `riptide targets` to discover open tabs and windows:
+
+```bash
+riptide targets --cdp-url http://localhost:9222
+```
+
+Then attach Riptide to a specific tab by Target ID or URL substring:
+
+```bash
+# Attach to a tab matching a URL substring (opens no new tab)
+riptide run --attach http://localhost:9222 --tab-url-match example.com --prompt "Click the login button"
+
+# Attach to a specific tab by Target ID
+riptide run --attach http://localhost:9222 --tab-id 5B01F29C... --prompt "..."
+
+# Attach and open a new tab in the remote browser
+riptide run --attach http://localhost:9222 --prompt "Go to google.com"
+```
+
+*Profile note*: Using a dedicated `--user-data-dir` starts a fresh, isolated Chrome profile (no saved cookies or logins). If you want the agent to operate on an existing logged-in session, launch Chrome using that profile directory — but do not run two Chrome instances against the exact same profile directory simultaneously to avoid state corruption.
+
+*Security note*: CDP exposes complete browser control over the specified debugging port. Restrict remote debugging ports to loopback interfaces (`127.0.0.1`) or secure isolated network namespaces.
 
 ## Testing Scenarios
 We have documented several test scenarios to validate advanced capabilities like Drag & Drop, Hover, and long-session pruning.

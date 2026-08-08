@@ -55,11 +55,21 @@ type SessionResult struct {
 
 	// Token usage aggregated across all turns. Populated from the
 	// "[log] Tokens:" events emitted by computer.go each turn.
-	PromptTokens     int `json:"prompt_tokens"`
-	CandidateTokens  int `json:"candidate_tokens"`
-	ThoughtTokens    int `json:"thought_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-	CachedTokens     int `json:"cached_tokens"`
+	PromptTokens    int `json:"prompt_tokens"`
+	CandidateTokens int `json:"candidate_tokens"`
+	ThoughtTokens   int `json:"thought_tokens"`
+	TotalTokens     int `json:"total_tokens"`
+	CachedTokens    int `json:"cached_tokens"`
+
+	// Wall-time metrics derived from log timestamps.
+	// WallSeconds is the elapsed time from first to last log line.
+	// ModelSeconds is the sum of "Model response received in Xs" durations.
+	// HarnessSeconds is WallSeconds − ModelSeconds (overhead: screenshots, waits, AXTree).
+	// TurnWallSeconds contains the per-turn wall time derived from inter-turn timestamps.
+	WallSeconds      float64   `json:"wall_seconds"`
+	ModelSeconds     float64   `json:"model_seconds"`
+	HarnessSeconds   float64   `json:"harness_seconds"`
+	TurnWallSeconds  []float64 `json:"turn_wall_seconds,omitempty"`
 }
 
 // Complete reports whether the session reached a definitive terminal state.
@@ -78,21 +88,76 @@ func ParseSessionLog(path string) (*SessionResult, error) {
 	res := &SessionResult{Outcome: OutcomeUnknown}
 
 	var (
-		promptRe     = regexp.MustCompile(`\[log\] Prompt: (.+)`)
-		turnRe       = regexp.MustCompile(`\[status\] Turn (\d+)/`)
-		actionRe     = regexp.MustCompile(`\[action\] Tool Call: (.+)`)
-		halluRe      = regexp.MustCompile(`\[hallucination\]`)
-		urlRe        = regexp.MustCompile(`\[log\].*url[=:]\s*(https?://\S+)`)
-		errorRe      = regexp.MustCompile(`\[error\] (.+)`)
-		injectionRe  = regexp.MustCompile(`\[prompt_injection\]`)
-		safetyRe     = regexp.MustCompile(`\[safety\]`)
-		tokensRe     = regexp.MustCompile(`\[log\] Tokens: prompt=(\d+) candidates=(\d+) thoughts=(\d+) total=(\d+) cached=(\d+)`)
+		promptRe    = regexp.MustCompile(`\[log\] Prompt: (.+)`)
+		turnRe      = regexp.MustCompile(`\[status\] Turn (\d+)/`)
+		actionRe    = regexp.MustCompile(`\[action\] Tool Call: (.+)`)
+		halluRe     = regexp.MustCompile(`\[hallucination\]`)
+		urlRe       = regexp.MustCompile(`\[log\].*url[=:]\s*(https?://\S+)`)
+		errorRe     = regexp.MustCompile(`\[error\] (.+)`)
+		injectionRe = regexp.MustCompile(`\[prompt_injection\]`)
+		safetyRe    = regexp.MustCompile(`\[safety\]`)
+		tokensRe    = regexp.MustCompile(`\[log\] Tokens: prompt=(\d+) candidates=(\d+) thoughts=(\d+) total=(\d+) cached=(\d+)`)
+		// Model response time: "Model response received in 6.369s"
+		modelTimeRe = regexp.MustCompile(`Model response received in ([\d.]+)([a-zµ]+)`)
+		// Log line timestamp prefix: "2026/06/26 12:05:51"
+		tsRe = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})`)
+	)
+	const tsLayout = "2006/01/02 15:04:05"
+
+	var (
+		firstTS   time.Time
+		lastTS    time.Time
+		turnTS    time.Time // timestamp of current turn-start
+		inTurn    bool
 	)
 
 	scanner := bufio.NewScanner(f)
 	maxTurn := 0
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// Parse wall-time from log timestamp prefix.
+		if m := tsRe.FindStringSubmatch(line); len(m) > 1 {
+			if t, err := time.Parse(tsLayout, m[1]); err == nil {
+				if firstTS.IsZero() {
+					firstTS = t
+				}
+				lastTS = t
+			}
+		}
+
+		// Track per-turn wall time: measure from Turn N start to Turn N+1 start.
+		if m := turnRe.FindStringSubmatch(line); len(m) > 1 {
+			if inTurn && !turnTS.IsZero() {
+				if m2 := tsRe.FindStringSubmatch(line); len(m2) > 1 {
+					if t, err := time.Parse(tsLayout, m2[1]); err == nil {
+						res.TurnWallSeconds = append(res.TurnWallSeconds, t.Sub(turnTS).Seconds())
+						turnTS = t
+					}
+				}
+			} else {
+				if m2 := tsRe.FindStringSubmatch(line); len(m2) > 1 {
+					if t, err := time.Parse(tsLayout, m2[1]); err == nil {
+						turnTS = t
+						inTurn = true
+					}
+				}
+			}
+		}
+
+		// Accumulate model response time from log messages.
+		if m := modelTimeRe.FindStringSubmatch(line); len(m) == 3 {
+			var val float64
+			fmt.Sscanf(m[1], "%f", &val)
+			switch m[2] {
+			case "ms":
+				res.ModelSeconds += val / 1000
+			case "s":
+				res.ModelSeconds += val
+			case "µs":
+				res.ModelSeconds += val / 1e6
+			}
+		}
 
 		if m := promptRe.FindStringSubmatch(line); len(m) > 1 {
 			res.Prompt = strings.TrimSuffix(m[1], " <nil>")
@@ -164,6 +229,14 @@ func ParseSessionLog(path string) (*SessionResult, error) {
 	res.Turns = maxTurn
 	if res.Outcome == OutcomeUnknown && res.ErrorMessage != "" {
 		res.Outcome = OutcomeError
+	}
+	// Compute wall-time summary.
+	if !firstTS.IsZero() && !lastTS.IsZero() {
+		res.WallSeconds = lastTS.Sub(firstTS).Seconds()
+		res.HarnessSeconds = res.WallSeconds - res.ModelSeconds
+		if res.HarnessSeconds < 0 {
+			res.HarnessSeconds = 0
+		}
 	}
 	return res, scanner.Err()
 }

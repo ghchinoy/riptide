@@ -1,0 +1,38 @@
+digraph isolation_decision {
+    rankdir=TB;
+    graph [fontname="Helvetica", nodesep=0.5, ranksep=0.6, bgcolor=white];
+    node [fontname="Helvetica", fontsize=11, style=filled];
+    edge [fontname="Helvetica", fontsize=10];
+
+    start [label="Where are\nyou deploying?",
+           shape=ellipse, fillcolor="#E3F2FD", color="#1565C0", penwidth=2];
+
+    q1 [label="macOS 26\nApple Silicon?",
+        shape=diamond, fillcolor="#FFF9C4", color="#F9A825", penwidth=2, width=2];
+
+    q2 [label="Need CI/CD or\na path to GKE?",
+        shape=diamond, fillcolor="#FFF9C4", color="#F9A825", penwidth=2, width=2];
+
+    q3 [label="Sessions are\nbatch or interactive?",
+        shape=diamond, fillcolor="#FFF9C4", color="#F9A825", penwidth=2, width=2.5];
+
+    apple [label="Apple Container\n──────────────\nVM isolation\nChrome sandbox restored\nDev machine only",
+           shape=box, fillcolor="#E8F5E9", color="#2E7D32", penwidth=2, width=2.4];
+
+    docker [label="Docker\n──────────────\nCI/CD · same OCI image\nPath to GKE Standard\nChrome seccomp profile",
+            shape=box, fillcolor="#E3F2FD", color="#1565C0", penwidth=2, width=2.4];
+
+    cloudrun [label="Cloud Run Jobs\n──────────────\nPay-per-second\n--tasks N --parallelism P\nGCS session output",
+              shape=box, fillcolor="#FFF3E0", color="#E65100", penwidth=2, width=2.4];
+
+    gke [label="GKE Agent Sandbox\n──────────────\nWarm pools (&lt;1s claim)\ngVisor · Default Deny\nWorkload Identity",
+         shape=box, fillcolor="#F3E5F5", color="#6A1B9A", penwidth=2, width=2.4];
+
+    start -> q1;
+    q1 -> apple  [label="  Yes"];
+    q1 -> q2     [label="  No"];
+    q2 -> docker [label="  Yes"];
+    q2 -> q3     [label="  No"];
+    q3 -> cloudrun [label="  Batch"];
+    q3 -> gke      [label="  Interactive"];
+}

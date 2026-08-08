@@ -63,6 +63,9 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initViper)
 
+	// Wire in the version set (or overridden) at link time.
+	rootCmd.Version = Version
+
 	// Command groups for discoverability.
 	rootCmd.AddGroup(
 		&cobra.Group{ID: "agent", Title: "Agent Commands:"},
@@ -113,8 +116,15 @@ func initViper() {
 	viper.SetDefault("tui.high_contrast", false)
 	viper.SetDefault("sessions.dir", "sessions")
 	viper.SetDefault("viewer.port", 8083)
+	// model.name / model.thinking_budget are read directly by `riptide run`
+	// (see cmd/run.go) and passed into computer.Run(); overriding them here
+	// or via --model / --thinking-budget flags changes the model actually
+	// used for GenerateContent calls.
 	viper.SetDefault("model.name", "gemini-3.5-flash")
 	viper.SetDefault("model.thinking_budget", 8192)
+	viper.SetDefault("browser.attach_url", "")
+	viper.SetDefault("browser.tab_id", "")
+	viper.SetDefault("browser.tab_url_match", "")
 
 	// Config file: ~/.config/riptide/config.yaml
 	viper.SetConfigName(ConfigFileName)

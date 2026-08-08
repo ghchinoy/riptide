@@ -68,22 +68,35 @@ func TestAllGemini35NamesRegistered(t *testing.T) {
 	}
 }
 
-// TestResolveKeyArg verifies all arg key variants are extracted correctly.
-func TestResolveKeyArg(t *testing.T) {
+// TestMapNamedKey verifies DOM key names and lower-case aliases map to chromedp kb constants.
+func TestMapNamedKey(t *testing.T) {
 	tests := []struct {
-		args map[string]interface{}
-		want string
+		input string
+		want  string
 	}{
-		{map[string]interface{}{"key": "Enter"}, "Enter"},
-		{map[string]interface{}{"text": "ctrl+c"}, "ctrl+c"},
-		{map[string]interface{}{"value": "Escape"}, "Escape"},
-		{map[string]interface{}{"keys": "Meta+a"}, "Meta+a"},
-		{map[string]interface{}{}, ""},
+		{"Enter", "\r"},
+		{"return", "\r"},
+		{"ArrowUp", "\u0304"},
+		{"up", "\u0304"},
+		{"ArrowDown", "\u0301"},
+		{"down", "\u0301"},
+		{"ArrowLeft", "\u0302"},
+		{"left", "\u0302"},
+		{"ArrowRight", "\u0303"},
+		{"right", "\u0303"},
+		{"Escape", "\u001b"},
+		{"esc", "\u001b"},
+		{"Space", " "},
+		{"space", " "},
+		{"Tab", "\t"},
+		{"tab", "\t"},
+		{"a", "a"},
+		{"A", "A"},
 	}
 	for _, tt := range tests {
-		got := resolveKeyArg(tt.args)
+		got := mapNamedKey(tt.input)
 		if got != tt.want {
-			t.Errorf("resolveKeyArg(%v) = %q; want %q", tt.args, got, tt.want)
+			t.Errorf("mapNamedKey(%q) = %q; want %q", tt.input, got, tt.want)
 		}
 	}
 }

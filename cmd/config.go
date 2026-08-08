@@ -73,7 +73,7 @@ google:
   project: ""
   location: "global"  # 3.5 Flash computer use is only served from 'global'
 
-# Model settings
+# Model settings (overridable per-run with --model / --thinking-budget)
 model:
   name: "%s"
   thinking_budget: %d
@@ -145,6 +145,7 @@ var configShowCmd = &cobra.Command{
 		keys := []string{
 			"google.project", "google.location",
 			"model.name", "model.thinking_budget",
+			"browser.attach_url", "browser.tab_id", "browser.tab_url_match",
 			"session.max_turns", "session.max_screenshots",
 			"session.axt", "session.transparent_ua",
 			"session.gif", "session.show_browser", "session.mode",
@@ -197,6 +198,7 @@ var configShowCmd = &cobra.Command{
 		}{
 			{"Credentials", []string{"google.project", "google.location"}},
 			{"Model", []string{"model.name", "model.thinking_budget"}},
+			{"Browser Attach", []string{"browser.attach_url", "browser.tab_id", "browser.tab_url_match"}},
 			{"Session Defaults", []string{
 				"session.max_turns", "session.max_screenshots",
 				"session.axt", "session.transparent_ua", "session.gif",

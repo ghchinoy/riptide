@@ -130,6 +130,26 @@ func TestThrashWindow_UrlDifferentiates(t *testing.T) {
 	}
 }
 
+func TestThrashWindow_KeyDifferentiates(t *testing.T) {
+	w := newThrashWindow(9)
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowDown"}, "Progress 1%")
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowRight"}, "Progress 2%")
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowDown"}, "Progress 3%")
+	if w.repeating(3) {
+		t.Error("different keys in sequence should not trigger loop detection")
+	}
+}
+
+func TestThrashWindow_DOMStateDifferentiates(t *testing.T) {
+	w := newThrashWindow(9)
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowRight"}, "Progress 1%")
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowRight"}, "Progress 2%")
+	w.recordAction("press_key", "https://a.com", map[string]interface{}{"key": "ArrowRight"}, "Progress 3%")
+	if w.repeating(3) {
+		t.Error("same key with changing DOM state (e.g. progress advancing) should not trigger loop detection")
+	}
+}
+
 func TestThrashWindow_ResetAfterInjection(t *testing.T) {
 	w := newThrashWindow(9)
 	w.record("scroll", "https://x.com")

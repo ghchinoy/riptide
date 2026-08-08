@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--attach <url>`, `--tab-id <id>`, and `--tab-url-match <substring>` flags on `riptide run` (and corresponding `browser.attach_url`, `browser.tab_id`, `browser.tab_url_match` config keys) enabling Riptide to attach to an existing Chrome browser instance via CDP (`chromedp.NewRemoteAllocator`) instead of spawning a new local browser.
+- New `riptide targets --cdp-url <url>` subcommand to discover open tabs and windows in an existing Chrome instance and list their Target IDs and URLs.
+- `--model` and `--thinking-budget` flags on `riptide run` to override the model and thinking budget for a single run, following the existing flag > env > config file > default resolution order.
+- `model.name` / `model.thinking_budget` config keys (settable via `~/.config/riptide/config.yaml` or `riptide config set`) are now actually wired into `computer.Run()` and used for the `GenerateContent` call. Previously these keys were written/displayed by `riptide config show`/`init` but silently ignored — the model was always the `ModelName` constant regardless of config.
+- Warning printed to stderr when `--model`/`model.name` is set to a known legacy computer-use model (e.g. `gemini-2.5-computer-use-preview-10-2025`, `gemini-3-flash-preview`, `gemini-3.1-pro-preview`) that requires a function-call dialect Riptide's harness does not implement. The run still proceeds.
 - **Gemini 3.5 Flash** replaces the old `gemini-2.5-computer-use-preview-10-2025` standalone preview model. Computer use is now a built-in native tool in the main Flash model; the reference implementation has moved to `gemini-3.5-flash` as default.
 - `SystemInstruction` field in `GenerateContentConfig` separates the agent persona and safety constraints from the user's task prompt, per Gemini 3.5 Flash best practices.
 - `ThinkingConfig` with an 8 192-token budget and `IncludeThoughts: true` enables internal chain-of-thought reasoning per turn. Thought tokens are surfaced in the TUI and session logs with a `[Thinking]` prefix.
@@ -22,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `computer.Run()` now accepts a `computer.RunOptions` struct encapsulating all execution settings (`AttachURL`, `TabID`, `TabURLMatch`, `ModelName`, `ThinkingBudget`, `MaxTurns`, etc.), replacing the positional parameter list.
+- `computer.Run()` renames package-level constants to `DefaultModelName`/`DefaultThinkingBudget`, falling back to defaults when options are un-set.
 - **genai SDK** upgraded from v1.39.0 to v1.62.0, required for `ComputerUse.Environment`, `EnablePromptInjectionDetection`, and `Part.Thought` fields.
 - README reframed around the **agent harness** pattern — the software scaffolding around a foundation model that manages observation, context, control, action, state, and verification.
 - `docs/concepts.md` opens with a definition of agent harness (per Kim et al. / Guo et al. 2026) and maps Riptide's components to the six harness responsibilities.

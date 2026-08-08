@@ -1,0 +1,112 @@
+digraph isolation_stack {
+    rankdir=LR;
+    graph [fontname="Helvetica", nodesep=0.6, ranksep=0.4, bgcolor=white];
+    node [shape=none, margin=0, fontname="Helvetica"];
+
+    // Force left-to-right ordering with invisible edges
+    apple -> docker -> cloudrun -> gke [style=invis, weight=100];
+
+    apple [label=<
+        <TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" BGCOLOR="white" COLOR="#2E7D32" CELLPADDING="4">
+        <TR><TD BGCOLOR="#388E3C" WIDTH="170" ALIGN="CENTER">
+            <FONT COLOR="white" POINT-SIZE="13"><B>Apple Container</B></FONT>
+        </TD></TR>
+        <TR><TD BGCOLOR="#C8E6C9" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">macOS 26 · Apple Silicon</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#E8F5E9" ALIGN="CENTER"><B>Hypervisor VM</B></TD></TR>
+        <TR><TD BGCOLOR="#E8F5E9" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">Virtualization.framework</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#F1F8E9" ALIGN="CENTER">Riptide · Chrome</TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#66BB6A" ALIGN="CENTER">
+            <FONT COLOR="white"><B>Chrome sandbox ✓</B></FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="white" ALIGN="CENTER">
+            <FONT POINT-SIZE="9" COLOR="#2E7D32">Strongest dev isolation</FONT>
+        </TD></TR>
+        </TABLE>
+    >];
+
+    docker [label=<
+        <TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" BGCOLOR="white" COLOR="#1565C0" CELLPADDING="4">
+        <TR><TD BGCOLOR="#1976D2" WIDTH="170" ALIGN="CENTER">
+            <FONT COLOR="white" POINT-SIZE="13"><B>Docker</B></FONT>
+        </TD></TR>
+        <TR><TD BGCOLOR="#BBDEFB" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">macOS · Linux · CI/CD</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#E3F2FD" ALIGN="CENTER"><B>Linux namespaces</B></TD></TR>
+        <TR><TD BGCOLOR="#E3F2FD" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">cgroups · seccomp</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#F8FBFF" ALIGN="CENTER">Riptide · Chrome</TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#42A5F5" ALIGN="CENTER">
+            <FONT COLOR="white"><B>Chrome sandbox ✓*</B></FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="white" ALIGN="CENTER">
+            <FONT POINT-SIZE="9" COLOR="#1565C0">*with Chrome seccomp profile</FONT>
+        </TD></TR>
+        </TABLE>
+    >];
+
+    cloudrun [label=<
+        <TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" BGCOLOR="white" COLOR="#E65100" CELLPADDING="4">
+        <TR><TD BGCOLOR="#F57C00" WIDTH="170" ALIGN="CENTER">
+            <FONT COLOR="white" POINT-SIZE="13"><B>Cloud Run Jobs</B></FONT>
+        </TD></TR>
+        <TR><TD BGCOLOR="#FFE0B2" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">GCP · Gen 2 · batch</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#FFF3E0" ALIGN="CENTER"><B>microVM (Gen 2)</B></TD></TR>
+        <TR><TD BGCOLOR="#FFF3E0" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">no gVisor · full Linux kernel</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#FFFDF5" ALIGN="CENTER">Riptide · Chrome</TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#FFA726" ALIGN="CENTER">
+            <FONT COLOR="white"><B>--no-sandbox</B></FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="white" ALIGN="CENTER">
+            <FONT POINT-SIZE="9" COLOR="#E65100">pay-per-second · task parallelism</FONT>
+        </TD></TR>
+        </TABLE>
+    >];
+
+    gke [label=<
+        <TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" BGCOLOR="white" COLOR="#6A1B9A" CELLPADDING="4">
+        <TR><TD BGCOLOR="#7B1FA2" WIDTH="170" ALIGN="CENTER">
+            <FONT COLOR="white" POINT-SIZE="13"><B>GKE Agent Sandbox</B></FONT>
+        </TD></TR>
+        <TR><TD BGCOLOR="#E1BEE7" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">GCP · gVisor · interactive</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#F3E5F5" ALIGN="CENTER"><B>gVisor Sentry</B></TD></TR>
+        <TR><TD BGCOLOR="#F3E5F5" ALIGN="CENTER">
+            <FONT POINT-SIZE="9">userspace kernel · Default Deny</FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#FCF5FF" ALIGN="CENTER">Riptide · Chrome</TD></TR>
+        <TR><TD HEIGHT="4" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="#AB47BC" ALIGN="CENTER">
+            <FONT COLOR="white"><B>--no-sandbox</B></FONT>
+        </TD></TR>
+        <TR><TD HEIGHT="6" BGCOLOR="white"></TD></TR>
+        <TR><TD BGCOLOR="white" ALIGN="CENTER">
+            <FONT POINT-SIZE="9" COLOR="#6A1B9A">warm pools · sub-second claim</FONT>
+        </TD></TR>
+        </TABLE>
+    >];
+}

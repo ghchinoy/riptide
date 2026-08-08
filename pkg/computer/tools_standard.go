@@ -18,10 +18,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
 )
 
 func init() {
@@ -52,19 +54,19 @@ func init() {
 	// ── Text input ──────────────────────────────────────────────────────────────
 	// 2.5 names: type_text_at, input_text
 	// 3.5 names: type (no coords — uses active element)
-	RegisterTool("type", handleType)          // 3.5 (also handles 2.5 with x/y)
-	RegisterTool("input_text", handleType)    // 2.5
-	RegisterTool("type_text_at", handleType)  // 2.5
+	RegisterTool("type", handleType)         // 3.5 (also handles 2.5 with x/y)
+	RegisterTool("input_text", handleType)   // 2.5
+	RegisterTool("type_text_at", handleType) // 2.5
 
 	// ── Keyboard ────────────────────────────────────────────────────────────────
 	// 2.5 names: key, key_combination
 	// 3.5 names: press_key, hotkey, key_down, key_up
 	RegisterTool("key", handleKey)
-	RegisterTool("press_key", handleKey)         // 3.5 (single key)
-	RegisterTool("key_combination", handleKey)   // 2.5
-	RegisterTool("hotkey", handleKey)            // 3.5 (modifier combos e.g. "ctrl+c")
-	RegisterTool("key_down", handleKeyDown)      // 3.5 new (press and hold)
-	RegisterTool("key_up", handleKeyUp)          // 3.5 new (release held key)
+	RegisterTool("press_key", handleKey)       // 3.5 (single key)
+	RegisterTool("key_combination", handleKey) // 2.5
+	RegisterTool("hotkey", handleKey)          // 3.5 (modifier combos e.g. "ctrl+c")
+	RegisterTool("key_down", handleKeyDown)    // 3.5 new (press and hold)
+	RegisterTool("key_up", handleKeyUp)        // 3.5 new (release held key)
 
 	// ── Scroll ──────────────────────────────────────────────────────────────────
 	// 2.5 names: scroll_document, scroll_at
@@ -135,7 +137,7 @@ func handleNavigate(ctx context.Context, args map[string]interface{}) (interface
 
 func handleSearch(ctx context.Context, args map[string]interface{}, w, h int) (interface{}, error) {
 	// Handle hallucinated 'search' tool by navigating to google
-	searchArgs := map[string]interface{}{ "url": "https://www.google.com"}
+	searchArgs := map[string]interface{}{"url": "https://www.google.com"}
 	return handleNavigate(ctx, searchArgs)
 }
 
@@ -245,23 +247,126 @@ func handleMouseUp(ctx context.Context, args map[string]interface{}, width, heig
 	return "mouse_up", err
 }
 
+// mapNamedKey maps standard DOM key names and lower-case aliases to chromedp kb constants / characters.
+func mapNamedKey(k string) string {
+	switch strings.ToLower(k) {
+	case "enter", "return":
+		return kb.Enter // "\r"
+	case "arrowup", "up":
+		return kb.ArrowUp
+	case "arrowdown", "down":
+		return kb.ArrowDown
+	case "arrowleft", "left":
+		return kb.ArrowLeft
+	case "arrowright", "right":
+		return kb.ArrowRight
+	case "escape", "esc":
+		return kb.Escape
+	case "tab":
+		return kb.Tab
+	case "backspace":
+		return kb.Backspace
+	case "delete", "del":
+		return kb.Delete
+	case "space":
+		return " "
+	case "home":
+		return kb.Home
+	case "end":
+		return kb.End
+	case "pageup":
+		return kb.PageUp
+	case "pagedown":
+		return kb.PageDown
+	case "f1":
+		return kb.F1
+	case "f2":
+		return kb.F2
+	case "f3":
+		return kb.F3
+	case "f4":
+		return kb.F4
+	case "f5":
+		return kb.F5
+	case "f6":
+		return kb.F6
+	case "f7":
+		return kb.F7
+	case "f8":
+		return kb.F8
+	case "f9":
+		return kb.F9
+	case "f10":
+		return kb.F10
+	case "f11":
+		return kb.F11
+	case "f12":
+		return kb.F12
+	default:
+		return k
+	}
+}
+
+func dispatchFullKeyEvent(ctx context.Context, rawKey string, eventType input.KeyType) error {
+	norm := strings.ToLower(rawKey)
+	var key, code string
+	var vk int64
+
+	switch norm {
+	case "arrowright", "right":
+		key, code, vk = "ArrowRight", "ArrowRight", 39
+	case "arrowleft", "left":
+		key, code, vk = "ArrowLeft", "ArrowLeft", 37
+	case "arrowup", "up":
+		key, code, vk = "ArrowUp", "ArrowUp", 38
+	case "arrowdown", "down":
+		key, code, vk = "ArrowDown", "ArrowDown", 40
+	case "enter", "return":
+		key, code, vk = "Enter", "Enter", 13
+	case "space", " ":
+		key, code, vk = " ", "Space", 32
+	case "escape", "esc":
+		key, code, vk = "Escape", "Escape", 27
+	case "tab":
+		key, code, vk = "Tab", "Tab", 9
+	case "backspace":
+		key, code, vk = "Backspace", "Backspace", 8
+	default:
+		mapped := mapNamedKey(rawKey)
+		if eventType == input.KeyDown {
+			return chromedp.Run(ctx, chromedp.KeyEvent(mapped))
+		}
+		return nil
+	}
+
+	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		p := input.DispatchKeyEvent(eventType).
+			WithKey(key).
+			WithCode(code).
+			WithWindowsVirtualKeyCode(vk).
+			WithNativeVirtualKeyCode(vk)
+		if key == " " {
+			p = p.WithText(" ").WithUnmodifiedText(" ")
+		} else if key == "Enter" {
+			p = p.WithText("\r").WithUnmodifiedText("\r")
+		}
+		return p.Do(ctx)
+	}))
+}
+
 // handleKeyDown presses and holds a key (3.5 new).
 func handleKeyDown(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
-	key := resolveKeyArg(args)
-	log.Printf("Key down: %s", key)
-	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		return input.DispatchKeyEvent(input.KeyDown).WithKey(key).Do(ctx)
-	}))
+	rawKey := resolveKeyArg(args)
+	log.Printf("Key down: %s", rawKey)
+	err := dispatchFullKeyEvent(ctx, rawKey, input.KeyDown)
 	return "key_down", err
 }
 
 // handleKeyUp releases a held key (3.5 new).
 func handleKeyUp(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
-	key := resolveKeyArg(args)
-	log.Printf("Key up: %s", key)
-	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		return input.DispatchKeyEvent(input.KeyUp).WithKey(key).Do(ctx)
-	}))
+	rawKey := resolveKeyArg(args)
+	log.Printf("Key up: %s", rawKey)
+	err := dispatchFullKeyEvent(ctx, rawKey, input.KeyUp)
 	return "key_up", err
 }
 
@@ -281,7 +386,7 @@ func handleMouseMove(ctx context.Context, args map[string]interface{}, width, he
 }
 
 func handleCursorPosition(ctx context.Context, args map[string]interface{}, width, height int) (interface{}, error) {
-	// CDP doesn't have a reliable way to query absolute mouse position on demand without 
+	// CDP doesn't have a reliable way to query absolute mouse position on demand without
 	// injecting tracking into the DOM ahead of time.
 	// Since we are the only thing moving the mouse via tools, we track the last dispatched coordinate.
 	normalized := []int{
@@ -404,12 +509,12 @@ func handleType(ctx context.Context, args map[string]interface{}, width, height 
 }
 
 func handleKey(ctx context.Context, args map[string]interface{}, _, _ int) (interface{}, error) {
-	key := resolveKeyArg(args)
-	if key == "Enter" || key == "return" {
-		key = "\r"
+	rawKey := resolveKeyArg(args)
+	log.Printf("Pressing Key: %s", rawKey)
+	if err := dispatchFullKeyEvent(ctx, rawKey, input.KeyDown); err != nil {
+		return nil, err
 	}
-	log.Printf("Pressing Key: %s", key)
-	err := chromedp.Run(ctx, chromedp.KeyEvent(key))
+	err := dispatchFullKeyEvent(ctx, rawKey, input.KeyUp)
 	return "pressed", err
 }
 
